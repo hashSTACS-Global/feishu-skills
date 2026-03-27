@@ -47,7 +47,7 @@ Tell your [OpenClaw](https://github.com/openclaw/openclaw) or [EnClaws](https://
 帮我安装飞书技能包：https://github.com/hashSTACS-Global/feishu-skills
 ```
 
-The agent will clone the repo and run `node install.js` automatically. After installation, restart OpenClaw/EnClaws.
+The agent will clone the repo and run `node install.js` automatically.
 
 ### Option B — Manual
 

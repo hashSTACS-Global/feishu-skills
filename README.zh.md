@@ -47,7 +47,7 @@
 帮我安装飞书技能包：https://github.com/hashSTACS-Global/feishu-skills
 ```
 
-Agent 会自动 clone 仓库并执行 `node install.js`。安装完成后重启 OpenClaw/EnClaws 即可生效。
+Agent 会自动 clone 仓库并执行 `node install.js`。
 
 ### 方式 B — 手动安装
 

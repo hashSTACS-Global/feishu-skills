@@ -92,4 +92,4 @@ done
 installed_json=$(printf '"%s",' "${INSTALLED[@]+"${INSTALLED[@]}"}" | sed 's/,$//')
 updated_json=$(printf '"%s",' "${UPDATED[@]+"${UPDATED[@]}"}" | sed 's/,$//')
 
-echo "{\"success\":true,\"target\":\"$TARGET_DIR\",\"installed\":[$installed_json],\"updated\":[$updated_json],\"reply\":\"飞书技能安装完成！路径：$TARGET_DIR。请重启 OpenClaw / EnClaws 后生效。\"}"
+echo "{\"success\":true,\"target\":\"$TARGET_DIR\",\"installed\":[$installed_json],\"updated\":[$updated_json],\"reply\":\"飞书技能安装完成！路径：$TARGET_DIR。\"}"

@@ -91,4 +91,4 @@ foreach ($skill in $SkillDirs) {
 $installedJson = ($Installed | ForEach-Object { "`"$_`"" }) -join ","
 $updatedJson   = ($Updated   | ForEach-Object { "`"$_`"" }) -join ","
 
-Write-Output "{`"success`":true,`"target`":`"$($Target -replace '\\','/')`",`"installed`":[$installedJson],`"updated`":[$updatedJson],`"reply`":`"飞书技能安装完成！路径：$Target。请重启 OpenClaw / EnClaws 后生效。`"}"
+Write-Output "{`"success`":true,`"target`":`"$($Target -replace '\\','/')`",`"installed`":[$installedJson],`"updated`":[$updatedJson],`"reply`":`"飞书技能安装完成！路径：$Target。`"}"

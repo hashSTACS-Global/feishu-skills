@@ -149,5 +149,5 @@ console.log(JSON.stringify({
   target: targetDir,
   installed,
   updated,
-  reply: `飞书技能安装完成！环境：${detected?.env ?? 'custom'}，路径：${targetDir}。已安装：${installed.join(', ')}${updated.length ? `；已更新：${updated.join(', ')}` : ''}。请重启 OpenClaw / EnClaws 后生效。`,
+  reply: `飞书技能安装完成！环境：${detected?.env ?? 'custom'}，路径：${targetDir}。已安装：${installed.join(', ')}${updated.length ? `；已更新：${updated.join(', ')}` : ''}。`,
 }));
