@@ -47,42 +47,26 @@
 帮我安装飞书技能包：https://github.com/hashSTACS-Global/feishu-skills
 ```
 
-Agent 会自动执行安装脚本。安装完成后重启 OpenClaw/EnClaws 即可生效。
+Agent 会自动 clone 仓库并执行 `node install.js`。安装完成后重启 OpenClaw/EnClaws 即可生效。
 
-### 方式 B — 一键命令行安装
-
-**macOS / Linux：**
-```bash
-curl -fsSL https://raw.githubusercontent.com/hashSTACS-Global/feishu-skills/main/install.sh | bash
-```
-
-**Windows（PowerShell）：**
-```powershell
-irm https://raw.githubusercontent.com/hashSTACS-Global/feishu-skills/main/install.ps1 | iex
-```
-
-### 方式 C — 手动安装
+### 方式 B — 手动安装
 
 ```bash
-# 克隆仓库
 git clone https://github.com/hashSTACS-Global/feishu-skills.git
 cd feishu-skills
-
-# macOS / Linux
-bash install.sh
-
-# Windows
-powershell -ExecutionPolicy Bypass -File install.ps1
+node install.js
 ```
 
-安装脚本会自动检测运行环境，将文件复制到对应目录：
-- **OpenClaw**：`~/.openclaw/workspace/skills/`
+`install.js` 会自动检测运行环境，将文件复制到对应目录：
 - **EnClaws**：`~/.enclaws/tenants/<tenant-id>/skills/`
+- **OpenClaw**：`~/.openclaw/workspace/skills/`
 
 如需指定自定义目录：
 ```bash
-bash install.sh --target /自定义/skills路径
+node install.js --target /自定义/skills路径
 ```
+
+> **Shell 脚本**（`install.sh` / `install.ps1`）作为备选方案保留，但推荐使用 `node install.js`，所有平台行为完全一致。
 
 ---
 

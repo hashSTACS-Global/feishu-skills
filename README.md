@@ -47,42 +47,26 @@ Tell your [OpenClaw](https://github.com/openclaw/openclaw) or [EnClaws](https://
 帮我安装飞书技能包：https://github.com/hashSTACS-Global/feishu-skills
 ```
 
-The agent will run the install script automatically. After installation, restart OpenClaw/EnClaws.
+The agent will clone the repo and run `node install.js` automatically. After installation, restart OpenClaw/EnClaws.
 
-### Option B — One-liner (terminal)
-
-**macOS / Linux:**
-```bash
-curl -fsSL https://raw.githubusercontent.com/hashSTACS-Global/feishu-skills/main/install.sh | bash
-```
-
-**Windows (PowerShell):**
-```powershell
-irm https://raw.githubusercontent.com/hashSTACS-Global/feishu-skills/main/install.ps1 | iex
-```
-
-### Option C — Manual
+### Option B — Manual
 
 ```bash
-# Clone the repo
 git clone https://github.com/hashSTACS-Global/feishu-skills.git
 cd feishu-skills
-
-# macOS / Linux
-bash install.sh
-
-# Windows
-powershell -ExecutionPolicy Bypass -File install.ps1
+node install.js
 ```
 
-The scripts auto-detect your environment and install to the correct directory:
-- **OpenClaw**: `~/.openclaw/workspace/skills/`
+`install.js` auto-detects your environment and installs to the correct directory:
 - **EnClaws**: `~/.enclaws/tenants/<tenant-id>/skills/`
+- **OpenClaw**: `~/.openclaw/workspace/skills/`
 
 To specify a custom target directory:
 ```bash
-bash install.sh --target /path/to/skills
+node install.js --target /path/to/skills
 ```
+
+> **Shell scripts** (`install.sh` / `install.ps1`) are also provided as alternatives but `node install.js` is recommended as it works identically on all platforms.
 
 ---
 
