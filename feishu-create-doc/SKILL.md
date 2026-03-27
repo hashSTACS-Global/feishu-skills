@@ -21,6 +21,15 @@ node ./create-doc.js --open-id "SENDER_OPEN_ID" --title "文档标题" --markdow
 
 可选参数：`--folder-token TOKEN`、`--wiki-node TOKEN`
 
+## 执行前确认
+
+**以下参数缺失或含糊时，必须先向用户询问，不得猜测或使用默认值：**
+
+| 参数 | 何时需要询问 |
+|---|---|
+| `--title` | 用户未明确说明文档标题 |
+| `--markdown` | 用户未提供文档内容（若明确要创建空文档则可省略） |
+
 ## 输出规范
 
 脚本返回 JSON 中有 `reply` 字段，将该值原样输出给用户，不要修改。

@@ -36,6 +36,16 @@ node ./im-read.js --action "search_messages" --open-id "SENDER_OPEN_ID" --query 
 - `--message-type "file"` — 限定消息类型（file/image/media）
 - `--chat-type "group"` — 限定会话类型（group/p2p）
 
+## 执行前确认
+
+**以下参数缺失或含糊时，必须先向用户询问，不得猜测或使用默认值：**
+
+| 参数 | 何时需要询问 |
+|---|---|
+| `--chat-id` / `--target-open-id` | 用户未指明要读取哪个会话（当前会话 chat_id 通常可从上下文获取，可优先使用） |
+| `--query` | 执行 search_messages 时用户未提供搜索关键词 |
+| 时间范围 | 用户说"最近的消息"等模糊描述时，询问具体时间范围或使用 `--relative-time today` 并告知用户 |
+
 ## 需要授权时
 
 若脚本返回 `{"error":"auth_required"}`，立即执行：

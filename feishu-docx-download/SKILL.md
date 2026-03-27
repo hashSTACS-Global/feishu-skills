@@ -19,6 +19,14 @@ inline: true
 | 含 `/wiki/`，`obj_type` 为 `doc`/`docx` | Wiki 云文档 | 用 **feishu-fetch-doc** |
 | 含 `/wiki/`，`obj_type` 为 `file` | Wiki 附件 | **使用本技能** ✓ |
 
+## 执行前确认
+
+**以下参数缺失或含糊时，必须先向用户询问，不得猜测或使用默认值：**
+
+| 参数 | 何时需要询问 |
+|---|---|
+| `--url` / `--file-token` | 用户未提供飞书 Wiki 链接或 file token |
+
 ## 步骤 1 — 下载文件
 
 ```bash

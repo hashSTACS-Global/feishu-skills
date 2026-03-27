@@ -20,6 +20,14 @@ node ./fetch-doc.js --open-id "SENDER_OPEN_ID" --doc-id "文档TOKEN或URL"
 
 若为 wiki 链接，加 `--wiki` 参数。脚本会自动从 URL 中解析 token。
 
+## 执行前确认
+
+**以下参数缺失或含糊时，必须先向用户询问，不得猜测或使用默认值：**
+
+| 参数 | 何时需要询问 |
+|---|---|
+| `--doc-id` | 用户未提供文档链接或 token |
+
 ## 输出规范
 
 脚本返回 JSON，其中 `markdown` 字段为文档内容，将内容直接展示给用户。

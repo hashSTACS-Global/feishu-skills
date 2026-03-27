@@ -37,6 +37,16 @@ node ./task.js --open-id "ou_xxx" --action add_task_members --task-id "TASK_ID" 
 node ./task.js --open-id "ou_xxx" --action remove_task_members --task-id "TASK_ID" --members "ou_yyy"
 ```
 
+## 执行前确认
+
+**以下参数缺失或含糊时，必须先向用户询问，不得猜测或使用默认值：**
+
+| 参数 | 何时需要询问 |
+|---|---|
+| `--summary` | 用户未明确说明任务标题 |
+| `--due` | 用户提到截止时间但不明确（如"尽快"、"下周"），询问具体日期时间 |
+| `--members` | 用户提到要分配给某人但未说明是谁，询问"分配给谁？" |
+
 ## 任务清单操作
 
 ```bash

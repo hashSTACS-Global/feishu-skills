@@ -63,6 +63,17 @@ node ./bitable.js --open-id "ou_xxx" --action update_view --app-token "APP_TOKEN
 node ./bitable.js --open-id "ou_xxx" --action delete_view --app-token "APP_TOKEN" --table-id "TABLE_ID" --view-id "VIEW_ID"
 ```
 
+## 执行前确认
+
+**以下参数缺失或含糊时，必须先向用户询问，不得猜测或使用默认值：**
+
+| 参数 | 何时需要询问 |
+|---|---|
+| `--app-token` | 用户未提供多维表格链接或 token |
+| `--table-id` | 操作记录/字段/视图时，未指明目标数据表（可先用 `list_tables` 列出让用户选择） |
+| `--fields` | 创建/更新记录时用户未提供字段内容 |
+| `--name` | 创建应用/数据表/视图时用户未说明名称 |
+
 ## 需要授权时
 
 若脚本返回 `{"error":"auth_required"}`，立即执行：
