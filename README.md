@@ -101,7 +101,12 @@ Your `~/.openclaw/openclaw.json` must have a `channels.feishu` section with your
 }
 ```
 
+> **⚠️ IMPORTANT: `tools` must be at the top level, NOT inside `channels.feishu`.**
+> OpenClaw's `channels.feishu.tools` uses a different schema (boolean flags only) — placing `deny` there will be **silently ignored** and the built-in plugin tools will remain active, causing the agent to bypass these skills entirely.
+
 > **Why `tools.deny`?** OpenClaw has built-in Feishu plugin tools (`feishu_doc`, etc.). These skills replace them with richer, per-user OAuth versions. Denying the built-in tools ensures the agent uses these skills instead.
+
+> **Why `tools.exec`?** These skills rely on the `exec` tool to run Node.js scripts. Without `"security": "full"` and `"ask": "off"`, the exec tool may be restricted or require manual confirmation for each invocation.
 
 ### EnClaws
 

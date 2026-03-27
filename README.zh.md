@@ -101,7 +101,12 @@ node install.js --target /自定义/skills路径
 }
 ```
 
+> **⚠️ 重要：`tools` 必须放在顶层，不能放在 `channels.feishu` 内部。**
+> OpenClaw 的 `channels.feishu.tools` 使用的是另一套 schema（仅支持布尔开关），将 `deny` 放在那里会被**静默忽略**，导致内置插件工具仍然激活，Agent 会跳过本技能包。
+
 > **为什么需要 `tools.deny`？** OpenClaw 内置了飞书插件工具（`feishu_doc` 等）。本技能包以更丰富的用户级 OAuth 版本替代了这些工具。禁用内置工具可确保 Agent 优先使用本技能包。
+
+> **为什么需要 `tools.exec`？** 本技能包通过 `exec` 工具执行 Node.js 脚本。如果不配置 `"security": "full"` 和 `"ask": "off"`，exec 工具可能被限制或每次执行都需手动确认。
 
 ### EnClaws
 
