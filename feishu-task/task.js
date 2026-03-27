@@ -1,0 +1,311 @@
+'use strict';
+/**
+ * feishu-task: Feishu task management via user OAuth.
+ *
+ * Usage:
+ *   node task.js --action <action> --open-id <open_id> [options]
+ *
+ * Task actions:    create_task, get_task, list_tasks, update_task, add_task_members, remove_task_members
+ * Tasklist actions: create_tasklist, get_tasklist, list_tasklists, update_tasklist, delete_tasklist,
+ *                   list_tasklist_tasks, add_tasklist_members, remove_tasklist_members
+ * Comment actions:  create_comment, list_comments, get_comment
+ * Subtask actions:  create_subtask, list_subtasks
+ */
+
+const path = require('path');
+const { getConfig, getValidToken } = require(
+  path.join(__dirname, '../feishu-auth/token-utils.js'),
+);
+
+function parseArgs() {
+  const argv = process.argv.slice(2);
+  const r = {
+    action: null, openId: null, taskId: null, tasklistId: null, commentId: null,
+    summary: null, description: null, due: null, members: null,
+    pageSize: 50, pageToken: null, completed: null, priority: null,
+    content: null, parentTaskId: null,
+  };
+  for (let i = 0; i < argv.length; i++) {
+    switch (argv[i]) {
+      case '--action':         r.action        = argv[++i]; break;
+      case '--open-id':        r.openId        = argv[++i]; break;
+      case '--task-id':        r.taskId        = argv[++i]; break;
+      case '--tasklist-id':    r.tasklistId    = argv[++i]; break;
+      case '--comment-id':     r.commentId     = argv[++i]; break;
+      case '--summary':        r.summary       = argv[++i]; break;
+      case '--description':    r.description   = argv[++i]; break;
+      case '--due':            r.due           = argv[++i]; break;
+      case '--members':        r.members       = argv[++i]; break;
+      case '--page-size':      r.pageSize      = parseInt(argv[++i], 10); break;
+      case '--page-token':     r.pageToken     = argv[++i]; break;
+      case '--completed':      r.completed     = argv[++i]; break;
+      case '--priority':       r.priority      = argv[++i]; break;
+      case '--content':        r.content       = argv[++i]; break;
+      case '--parent-task-id': r.parentTaskId  = argv[++i]; break;
+    }
+  }
+  return r;
+}
+
+function out(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
+function die(obj) { out(obj); process.exit(1); }
+
+async function apiCall(method, urlPath, token, body, query) {
+  let url = `https://open.feishu.cn/open-apis${urlPath}`;
+  if (query) {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(query)) {
+      if (v !== undefined && v !== null) params.set(k, String(v));
+    }
+    const qs = params.toString();
+    if (qs) url += (url.includes('?') ? '&' : '?') + qs;
+  }
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return res.json();
+}
+
+function toTimestamp(dateStr) { return String(Math.floor(new Date(dateStr).getTime() / 1000)); }
+
+function parseMemberIds(str) {
+  return str.split(',').map(id => id.trim()).filter(Boolean);
+}
+
+// ---------------------------------------------------------------------------
+// Task actions
+// ---------------------------------------------------------------------------
+
+async function createTask(args, token) {
+  const body = { summary: args.summary || '未命名任务' };
+  if (args.description) body.description = args.description;
+  if (args.due) body.due = { timestamp: toTimestamp(args.due), is_all_day: false };
+  if (args.members) {
+    body.members = parseMemberIds(args.members).map(id => ({
+      id, type: 'user', role: 'assignee',
+    }));
+  }
+  if (args.tasklistId) body.tasklists = [{ tasklist_id: args.tasklistId }];
+  const data = await apiCall('POST', '/task/v2/tasks', token, body, { user_id_type: 'open_id' });
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ task: data.data?.task, reply: `任务「${args.summary}」已创建` });
+}
+
+async function getTask(args, token) {
+  if (!args.taskId) die({ error: 'missing_param', message: '--task-id 必填' });
+  const data = await apiCall('GET', `/task/v2/tasks/${args.taskId}`, token, null, { user_id_type: 'open_id' });
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ task: data.data?.task });
+}
+
+async function listTasks(args, token) {
+  const query = { page_size: String(args.pageSize), user_id_type: 'open_id' };
+  if (args.pageToken) query.page_token = args.pageToken;
+  if (args.completed) query.completed = args.completed;
+  const data = await apiCall('GET', '/task/v2/tasks', token, null, query);
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ tasks: data.data?.items || [], has_more: data.data?.has_more, page_token: data.data?.page_token });
+}
+
+async function updateTask(args, token) {
+  if (!args.taskId) die({ error: 'missing_param', message: '--task-id 必填' });
+  const body = {};
+  if (args.summary) body.summary = args.summary;
+  if (args.description) body.description = args.description;
+  if (args.due) body.due = { timestamp: toTimestamp(args.due), is_all_day: false };
+  if (args.completed === 'true') body.completed_at = String(Math.floor(Date.now() / 1000));
+  const data = await apiCall('PATCH', `/task/v2/tasks/${args.taskId}`, token, body, { user_id_type: 'open_id' });
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ task: data.data?.task, reply: '任务已更新' });
+}
+
+async function addTaskMembers(args, token) {
+  if (!args.taskId) die({ error: 'missing_param', message: '--task-id 必填' });
+  if (!args.members) die({ error: 'missing_param', message: '--members 必填' });
+  const body = {
+    members: parseMemberIds(args.members).map(id => ({ id, type: 'user', role: 'assignee' })),
+  };
+  const data = await apiCall('POST', `/task/v2/tasks/${args.taskId}/add_members`, token, body, { user_id_type: 'open_id' });
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ task: data.data?.task, reply: '成员已添加' });
+}
+
+async function removeTaskMembers(args, token) {
+  if (!args.taskId) die({ error: 'missing_param', message: '--task-id 必填' });
+  if (!args.members) die({ error: 'missing_param', message: '--members 必填' });
+  const body = {
+    members: parseMemberIds(args.members).map(id => ({ id, type: 'user', role: 'assignee' })),
+  };
+  const data = await apiCall('POST', `/task/v2/tasks/${args.taskId}/remove_members`, token, body, { user_id_type: 'open_id' });
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ task: data.data?.task, reply: '成员已移除' });
+}
+
+// ---------------------------------------------------------------------------
+// Tasklist actions
+// ---------------------------------------------------------------------------
+
+async function createTasklist(args, token) {
+  const body = { name: args.summary || '未命名清单' };
+  const data = await apiCall('POST', '/task/v2/tasklists', token, body, { user_id_type: 'open_id' });
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ tasklist: data.data?.tasklist, reply: `任务清单「${args.summary}」已创建` });
+}
+
+async function getTasklist(args, token) {
+  if (!args.tasklistId) die({ error: 'missing_param', message: '--tasklist-id 必填' });
+  const data = await apiCall('GET', `/task/v2/tasklists/${args.tasklistId}`, token, null, { user_id_type: 'open_id' });
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ tasklist: data.data?.tasklist });
+}
+
+async function listTasklists(args, token) {
+  const query = { page_size: String(args.pageSize), user_id_type: 'open_id' };
+  if (args.pageToken) query.page_token = args.pageToken;
+  const data = await apiCall('GET', '/task/v2/tasklists', token, null, query);
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ tasklists: data.data?.items || [], has_more: data.data?.has_more, page_token: data.data?.page_token });
+}
+
+async function updateTasklist(args, token) {
+  if (!args.tasklistId) die({ error: 'missing_param', message: '--tasklist-id 必填' });
+  const body = {};
+  if (args.summary) body.name = args.summary;
+  const data = await apiCall('PATCH', `/task/v2/tasklists/${args.tasklistId}`, token, body, { user_id_type: 'open_id' });
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ tasklist: data.data?.tasklist, reply: '任务清单已更新' });
+}
+
+async function deleteTasklist(args, token) {
+  if (!args.tasklistId) die({ error: 'missing_param', message: '--tasklist-id 必填' });
+  const data = await apiCall('DELETE', `/task/v2/tasklists/${args.tasklistId}`, token);
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ success: true, reply: '任务清单已删除' });
+}
+
+async function listTasklistTasks(args, token) {
+  if (!args.tasklistId) die({ error: 'missing_param', message: '--tasklist-id 必填' });
+  const query = { page_size: String(args.pageSize), user_id_type: 'open_id' };
+  if (args.pageToken) query.page_token = args.pageToken;
+  if (args.completed) query.completed = args.completed;
+  const data = await apiCall('GET', `/task/v2/tasklists/${args.tasklistId}/tasks`, token, null, query);
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ tasks: data.data?.items || [], has_more: data.data?.has_more, page_token: data.data?.page_token });
+}
+
+async function addTasklistMembers(args, token) {
+  if (!args.tasklistId) die({ error: 'missing_param', message: '--tasklist-id 必填' });
+  if (!args.members) die({ error: 'missing_param', message: '--members 必填' });
+  const body = {
+    members: parseMemberIds(args.members).map(id => ({ id, type: 'user', role: 'editor' })),
+  };
+  const data = await apiCall('POST', `/task/v2/tasklists/${args.tasklistId}/add_members`, token, body, { user_id_type: 'open_id' });
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ tasklist: data.data?.tasklist, reply: '清单成员已添加' });
+}
+
+async function removeTasklistMembers(args, token) {
+  if (!args.tasklistId) die({ error: 'missing_param', message: '--tasklist-id 必填' });
+  if (!args.members) die({ error: 'missing_param', message: '--members 必填' });
+  const body = {
+    members: parseMemberIds(args.members).map(id => ({ id, type: 'user', role: 'editor' })),
+  };
+  const data = await apiCall('POST', `/task/v2/tasklists/${args.tasklistId}/remove_members`, token, body, { user_id_type: 'open_id' });
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ tasklist: data.data?.tasklist, reply: '清单成员已移除' });
+}
+
+// ---------------------------------------------------------------------------
+// Comment & Subtask
+// ---------------------------------------------------------------------------
+
+async function createComment(args, token) {
+  if (!args.taskId) die({ error: 'missing_param', message: '--task-id 必填' });
+  if (!args.content) die({ error: 'missing_param', message: '--content 必填' });
+  const body = { content: args.content };
+  const data = await apiCall('POST', `/task/v2/tasks/${args.taskId}/comments`, token, body, { user_id_type: 'open_id' });
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ comment: data.data?.comment, reply: '评论已添加' });
+}
+
+async function listComments(args, token) {
+  if (!args.taskId) die({ error: 'missing_param', message: '--task-id 必填' });
+  const query = { page_size: String(args.pageSize), user_id_type: 'open_id' };
+  if (args.pageToken) query.page_token = args.pageToken;
+  const data = await apiCall('GET', `/task/v2/tasks/${args.taskId}/comments`, token, null, query);
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ comments: data.data?.items || [], has_more: data.data?.has_more, page_token: data.data?.page_token });
+}
+
+async function getComment(args, token) {
+  if (!args.taskId) die({ error: 'missing_param', message: '--task-id 必填' });
+  if (!args.commentId) die({ error: 'missing_param', message: '--comment-id 必填' });
+  const data = await apiCall('GET', `/task/v2/tasks/${args.taskId}/comments/${args.commentId}`, token, null, { user_id_type: 'open_id' });
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ comment: data.data?.comment });
+}
+
+async function createSubtask(args, token) {
+  if (!args.taskId) die({ error: 'missing_param', message: '--task-id 必填' });
+  const body = { summary: args.summary || '未命名子任务' };
+  if (args.description) body.description = args.description;
+  if (args.due) body.due = { timestamp: toTimestamp(args.due), is_all_day: false };
+  const data = await apiCall('POST', `/task/v2/tasks/${args.taskId}/subtasks`, token, body, { user_id_type: 'open_id' });
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ task: data.data?.task, reply: `子任务「${args.summary}」已创建` });
+}
+
+async function listSubtasks(args, token) {
+  if (!args.taskId) die({ error: 'missing_param', message: '--task-id 必填' });
+  const query = { page_size: String(args.pageSize), user_id_type: 'open_id' };
+  if (args.pageToken) query.page_token = args.pageToken;
+  const data = await apiCall('GET', `/task/v2/tasks/${args.taskId}/subtasks`, token, null, query);
+  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
+  out({ tasks: data.data?.items || [], has_more: data.data?.has_more, page_token: data.data?.page_token });
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+const ACTIONS = {
+  create_task: createTask, get_task: getTask, list_tasks: listTasks,
+  update_task: updateTask, add_task_members: addTaskMembers, remove_task_members: removeTaskMembers,
+  create_tasklist: createTasklist, get_tasklist: getTasklist, list_tasklists: listTasklists,
+  update_tasklist: updateTasklist, delete_tasklist: deleteTasklist,
+  list_tasklist_tasks: listTasklistTasks, add_tasklist_members: addTasklistMembers,
+  remove_tasklist_members: removeTasklistMembers,
+  create_comment: createComment, list_comments: listComments, get_comment: getComment,
+  create_subtask: createSubtask, list_subtasks: listSubtasks,
+};
+
+async function main() {
+  const args = parseArgs();
+  if (!args.openId) die({ error: 'missing_param', message: '--open-id 参数必填' });
+  if (!args.action) die({ error: 'missing_param', message: `--action 参数必填。可选: ${Object.keys(ACTIONS).join(', ')}` });
+
+  const handler = ACTIONS[args.action];
+  if (!handler) die({ error: 'invalid_action', message: `未知操作: ${args.action}。可选: ${Object.keys(ACTIONS).join(', ')}` });
+
+  let cfg;
+  try { cfg = getConfig(__dirname); } catch (err) { die({ error: 'config_error', message: err.message }); }
+
+  let accessToken;
+  try { accessToken = await getValidToken(args.openId, cfg.appId, cfg.appSecret); } catch (err) {
+    die({ error: 'token_error', message: err.message });
+  }
+  if (!accessToken) {
+    die({ error: 'auth_required', message: `用户未授权。open_id: ${args.openId}` });
+  }
+
+  try {
+    await handler(args, accessToken);
+  } catch (err) {
+    if (err.message?.includes('99991663')) die({ error: 'auth_required', message: 'token 已失效，请重新授权' });
+    die({ error: 'api_error', message: err.message });
+  }
+}
+
+main();
