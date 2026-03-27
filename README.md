@@ -44,7 +44,7 @@ Enables AI agents to read/write Feishu documents, send messages, manage calendar
 Tell your [OpenClaw](https://github.com/openclaw/openclaw) or [EnClaws](https://github.com/hashSTACS-Global/EnClaws) agent:
 
 ```
-帮我安装飞书技能包：https://github.com/hashSTACS-Global/feishu-skills
+Install the Feishu skill pack: https://github.com/hashSTACS-Global/feishu-skills
 ```
 
 The agent will clone the repo and run `node install.js` automatically.
@@ -148,11 +148,11 @@ Scripts resolve app credentials in this order:
 Once installed, just talk to your agent naturally:
 
 ```
-帮我创建一个飞书文档，标题"Q1 OKR"，内容是...
-读一下这个飞书文档：https://xxx.feishu.cn/docx/...
-查看我今天的日程
-帮我创建一个任务：明天下午3点前提交报告
-在这个多维表格里新增一条记录：...
+Create a Feishu doc titled "Q1 OKR" with the following content...
+Read this Feishu doc: https://xxx.feishu.cn/docx/...
+Show me my calendar events for today
+Create a task: submit the report by 3 PM tomorrow
+Add a new record to this Bitable: ...
 ```
 
 ---
