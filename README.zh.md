@@ -30,7 +30,7 @@
 - 已安装 **[OpenClaw](https://github.com/openclaw/openclaw)** 或 **[EnClaws](https://github.com/hashSTACS-Global/EnClaws)**
 - 一个飞书应用，并开通以下权限（详见[配置](#配置)）：
   - `docs:doc`、`wiki:wiki:readonly`、`drive:drive`
-  - `im:message:readonly`
+  - `im:message`、`im:message:readonly`
   - `calendar:calendar`
   - `task:task`
   - `bitable:app`
@@ -87,7 +87,13 @@ node install.js --target /自定义/skills路径
   "tools": {
     "deny": [
       "feishu_doc",
+      "feishu_create_doc",
+      "feishu_fetch_doc",
+      "feishu_update_doc",
       "feishu_wiki",
+      "feishu_wiki_*",
+      "feishu_drive_*",
+      "feishu_im_*",
       "feishu_bitable_*",
       "feishu_calendar_*",
       "feishu_task_*",

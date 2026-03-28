@@ -30,7 +30,7 @@ const {
 
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const result = { mode: null, openId: null, poll: false, chatId: null };
+  const result = { mode: null, openId: null, poll: false, chatId: null, timeout: null };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
       case '--auth-and-poll': result.mode = 'auth-and-poll'; break;
@@ -41,6 +41,7 @@ function parseArgs() {
       case '--poll':          result.poll = true;             break;
       case '--open-id':       result.openId = argv[++i];     break;
       case '--chat-id':       result.chatId = argv[++i];     break;
+      case '--timeout':       result.timeout = parseInt(argv[++i], 10); break;
     }
   }
   return result;
@@ -223,13 +224,16 @@ function saveAuthorizedToken(openId, cfg, data) {
 // Poll loop (shared by --complete --poll and --auth-and-poll)
 // ---------------------------------------------------------------------------
 
-async function pollUntilAuthorized(openId, cfg, pending) {
-  const deadline = pending.created_at + pending.expires_in * 1000;
+async function pollUntilAuthorized(openId, cfg, pending, timeoutMs) {
+  const deviceDeadline = pending.created_at + pending.expires_in * 1000;
+  const pollDeadline = timeoutMs ? Date.now() + timeoutMs : deviceDeadline;
+  const deadline = Math.min(deviceDeadline, pollDeadline);
   const intervalMs = Math.min((pending.interval ?? 5), 3) * 1000;
 
   while (Date.now() < deadline) {
     const json = await tryExchange(pending.device_code, cfg);
     const error = json.error;
+    process.stderr.write(`[poll] exchange response: ${JSON.stringify(json).slice(0, 500)}\n`);
 
     if (!error && json.access_token) {
       const tokenData = saveAuthorizedToken(openId, cfg, json);
@@ -273,8 +277,14 @@ async function pollUntilAuthorized(openId, cfg, pending) {
     };
   }
 
+  // Distinguish between poll timeout (device_code still valid) and device_code expired
+  if (Date.now() < deviceDeadline) {
+    // Poll timeout but device_code still valid — do NOT delete pending
+    return { status: 'polling_timeout', message: '轮询超时，但授权链接仍有效，请重试' };
+  }
+
   deletePending(openId);
-  return { status: 'expired', message: '等待授权超时' };
+  return { status: 'expired', message: '授权码已过期' };
 }
 
 // ---------------------------------------------------------------------------
@@ -282,7 +292,7 @@ async function pollUntilAuthorized(openId, cfg, pending) {
 // Sends auth link to user via IM, then polls until authorized.
 // ---------------------------------------------------------------------------
 
-async function authAndPoll(openId, chatId, cfg) {
+async function authAndPoll(openId, chatId, cfg, timeoutMs) {
   // Resolve chatId with fallback: CLI arg → env var → null (private message)
   const resolvedChatId = chatId || process.env.ENCLAWS_CHAT_ID || null;
 
@@ -292,6 +302,28 @@ async function authAndPoll(openId, chatId, cfg) {
   if (existingToken) {
     out({ status: 'authorized', message: '用户已授权，无需重新授权' });
     return;
+  }
+
+  // Check if there's a pending auth from a previous (possibly killed) run
+  const existingPending = readPending(openId);
+  if (existingPending && (existingPending.created_at + existingPending.expires_in * 1000) > Date.now()) {
+    process.stderr.write('[auth-and-poll] found existing pending auth, trying exchange first...\n');
+    const json = await tryExchange(existingPending.device_code, cfg);
+    if (!json.error && json.access_token) {
+      saveAuthorizedToken(openId, cfg, json);
+      deletePending(openId);
+      out({ status: 'authorized', message: '授权成功！' });
+      return;
+    }
+    process.stderr.write(`[auth-and-poll] existing pending not yet authorized (${json.error}), will re-use it\n`);
+    // Re-use existing pending if user hasn't authorized yet (avoid generating new device_code)
+    if (json.error === 'authorization_pending') {
+      const result = await pollUntilAuthorized(openId, cfg, existingPending, timeoutMs);
+      out(result);
+      if (result.status !== 'authorized' && result.status !== 'polling_timeout') process.exit(1);
+      return;
+    }
+    // Other errors (expired, denied, etc.) — fall through to create new auth
   }
 
   // Init: get device code and auth URL
@@ -315,24 +347,29 @@ async function authAndPoll(openId, chatId, cfg) {
       const tenantToken = await getTenantAccessToken(cfg.appId, cfg.appSecret);
       const receiveIdType = resolvedChatId ? 'chat_id' : 'open_id';
       const receiveId = resolvedChatId || openId;
-      await sendFeishuMessage(tenantToken, receiveIdType, receiveId, null, {
+      const textResult = await sendFeishuMessage(tenantToken, receiveIdType, receiveId, null, {
         msg_type: 'text',
-        content: JSON.stringify({ text: `需要完成飞书授权，请点击链接：${pending.verification_uri}` }),
+        content: JSON.stringify({ text: `需要完成飞书授权，请点击链接完成授权：\n${pending.verification_uri}` }),
       });
-    } catch {
+      if (textResult.code !== 0) {
+        throw new Error(`IM API error: code=${textResult.code} msg=${textResult.msg}`);
+      }
+    } catch (err2) {
       // Last resort: output URL for AI to show manually
+      process.stderr.write(`[auth-and-poll] text fallback also failed: ${err2.message}\n`);
       out({
         status: 'awaiting',
         url: pending.verification_uri,
-        message: '无法发送授权消息，请将此链接发给用户',
+        reply: `请点击以下链接完成飞书授权：[点击授权](${pending.verification_uri})`,
+        message: '无法通过 IM 发送授权消息，请将 reply 内容直接展示给用户',
       });
     }
   }
 
-  // Poll until authorized
-  const result = await pollUntilAuthorized(openId, cfg, pending);
+  // Poll until authorized (short poll, agent will retry if timeout)
+  const result = await pollUntilAuthorized(openId, cfg, pending, timeoutMs);
   out(result);
-  if (result.status !== 'authorized') {
+  if (result.status !== 'authorized' && result.status !== 'polling_timeout') {
     process.exit(1);
   }
 }
@@ -488,7 +525,7 @@ async function main() {
 
   try {
     switch (args.mode) {
-      case 'auth-and-poll': await authAndPoll(args.openId, args.chatId, cfg); break;
+      case 'auth-and-poll': await authAndPoll(args.openId, args.chatId, cfg, (args.timeout ?? 60) * 1000); break;
       case 'init':          await init(args.openId, cfg);                     break;
       case 'complete':      await complete(args.openId, cfg, args.poll);      break;
       case 'revoke':        await revoke(args.openId, cfg);                   break;

@@ -30,7 +30,7 @@ Enables AI agents to read/write Feishu documents, send messages, manage calendar
 - **[OpenClaw](https://github.com/openclaw/openclaw)** or **[EnClaws](https://github.com/hashSTACS-Global/EnClaws)** installed
 - A Feishu app with the following permissions (see [Configuration](#configuration)):
   - `docs:doc`, `wiki:wiki:readonly`, `drive:drive`
-  - `im:message:readonly`
+  - `im:message`, `im:message:readonly`
   - `calendar:calendar`
   - `task:task`
   - `bitable:app`
@@ -87,7 +87,13 @@ Your `~/.openclaw/openclaw.json` must have a `channels.feishu` section with your
   "tools": {
     "deny": [
       "feishu_doc",
+      "feishu_create_doc",
+      "feishu_fetch_doc",
+      "feishu_update_doc",
       "feishu_wiki",
+      "feishu_wiki_*",
+      "feishu_drive_*",
+      "feishu_im_*",
       "feishu_bitable_*",
       "feishu_calendar_*",
       "feishu_task_*",

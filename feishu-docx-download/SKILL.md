@@ -45,13 +45,15 @@ node ./download-doc.js --open-id "SENDER_OPEN_ID" --file-token "FILE_TOKEN" --ty
 
 ## 需要授权时
 
-若脚本返回 `{"error":"auth_required"}`，立即执行：
+若返回 `{"error":"auth_required"}`，执行：
 
 ```bash
-node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id "CHAT_ID"
+node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id "CHAT_ID" --timeout 60
 ```
 
-授权成功后**必须立即重新执行**下载命令。
+- `{"status":"authorized"}` → 重新执行下载命令
+- `{"status":"polling_timeout"}` → **立即重新执行此 auth 命令**（不会重复发卡片）
+- `CHAT_ID` 不知道可省略
 
 ## 步骤 2 — 提取文本
 

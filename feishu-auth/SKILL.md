@@ -13,18 +13,22 @@ description: |
 - **命令**：`node`
 - 脚本路径相对于本 SKILL.md 所在目录，执行前需解析为绝对路径
 
-## 授权流程（单条命令，自动完成）
+## 授权流程
 
-当需要用户授权时，执行以下命令。脚本会自动发送授权卡片给用户，然后阻塞等待用户完成授权：
+当需要用户授权时，执行以下命令：
 
 ```bash
-node "./auth.js" --auth-and-poll --open-id "OPEN_ID" --chat-id "CHAT_ID"
+node "./auth.js" --auth-and-poll --open-id "OPEN_ID" --chat-id "CHAT_ID" --timeout 60
 ```
 
 - `OPEN_ID`：用户的飞书 open_id（必填）
 - `CHAT_ID`：当前会话的 chat_id（可选，有则发到群里，无则发私信）
+- `--timeout`：轮询等待秒数（默认 60）
 
-返回 `{"status":"authorized"}` 表示授权成功，可继续后续操作。
+**返回值处理：**
+- `{"status":"authorized"}` → 授权成功，继续后续操作
+- `{"status":"polling_timeout"}` → 用户尚未完成授权，**立即重新执行同一命令**（会自动复用授权链接，不会重复发送卡片）
+- 其他错误 → 停止并告知用户
 
 执行此命令前后不要输出额外文字，脚本已自动通知用户。
 
