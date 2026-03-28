@@ -49,6 +49,8 @@
 
 Agent 会自动 clone 仓库并执行 `node install.js`。
 
+> **如果 Agent 无法访问 GitHub**，请手动下载/传输仓库文件到服务器，然后让 Agent 在仓库目录下执行 `node install.js`。**不要手动复制技能目录**——必须使用 `install.js` 确保目录结构正确。
+
 ### 方式 B — 手动安装
 
 ```bash

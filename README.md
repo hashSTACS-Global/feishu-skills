@@ -49,6 +49,8 @@ Install the Feishu skill pack: https://github.com/hashSTACS-Global/feishu-skills
 
 The agent will clone the repo and run `node install.js` automatically.
 
+> **If the agent cannot access GitHub**, manually download / transfer the repo files to the server, then tell the agent to run `node install.js` from the repo directory. **Do NOT manually copy skill directories** — always use `install.js` to ensure correct structure.
+
 ### Option B — Manual
 
 ```bash
