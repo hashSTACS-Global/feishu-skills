@@ -36,7 +36,7 @@ const fileType   = getArg('--type');
 const outputName = getArg('--output');
 
 // Default output dir:
-//   EnClaws: $ENCLAWS_USER_WORKSPACE/download  (injected by EnClaws runtime)
+//   EnClaws: ENCLAWS_USER_WORKSPACE env var + /download
 //   OpenClaw / other: ./download  (relative to cwd, which is the workspace root)
 function resolveDefaultOutputDir() {
   const envWorkspace = process.env.ENCLAWS_USER_WORKSPACE;
