@@ -268,9 +268,17 @@ async function main() {
     if (isWiki) {
       const node = await resolveWikiNode(docToken, accessToken);
       if (node.objType !== 'docx' && node.objType !== 'doc') {
+        if (node.objType === 'file') {
+          die({
+            error: 'unsupported_type',
+            message: `Wiki 节点类型为 file（附件文件），不是在线云文档。`,
+            hint: '请改用 feishu-docx-download 技能下载并提取此文件',
+            reply: `该文档是飞书 Wiki 中的附件文件，无法直接读取内容。正在为您下载并提取文本...`,
+          });
+        }
         die({
           error: 'unsupported_type',
-          message: `Wiki 节点类型为 ${node.objType}，不是文档类型。仅支持 docx/doc 类型。`,
+          message: `Wiki 节点类型为 ${node.objType}，不是文档类型。feishu-fetch-doc 仅支持 docx/doc 类型。`,
         });
       }
       title = node.title || '';
