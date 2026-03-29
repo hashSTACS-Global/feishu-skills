@@ -90,8 +90,51 @@ function copyDir(src, dst) {
   }
 }
 
+// Non-skill files to clean up when running in-place
+const CLEANUP_FILES = [
+  'install.js', 'install.sh', 'install.ps1',
+  'README.md', 'README.zh.md', 'SKILL.md', 'LICENSE', '.gitignore', '.git',
+];
+
+function removeRecursive(p) {
+  if (!fs.existsSync(p)) return;
+  if (fs.statSync(p).isDirectory()) {
+    for (const entry of fs.readdirSync(p)) removeRecursive(path.join(p, entry));
+    fs.rmdirSync(p);
+  } else {
+    fs.unlinkSync(p);
+  }
+}
+
 // ---------------------------------------------------------------------------
-// Main
+// Detect in-place mode: install.js is already inside a skills directory
+// (e.g. AI unzipped the repo directly into skills/feishu-skills/)
+// ---------------------------------------------------------------------------
+const repoDir = path.dirname(path.resolve(process.argv[1]));
+const parentDir = path.dirname(repoDir);
+const parentName = path.basename(parentDir).toLowerCase();
+const hasSkillDirs = SKILLS.some(s => fs.existsSync(path.join(repoDir, s)));
+const isInPlace = hasSkillDirs && (parentName === 'skills');
+
+if (isInPlace && !targetDir) {
+  // In-place mode: already inside skills dir, just clean up non-skill files
+  const skillsFound = SKILLS.filter(s => fs.existsSync(path.join(repoDir, s)));
+  for (const f of CLEANUP_FILES) {
+    removeRecursive(path.join(repoDir, f));
+  }
+  console.log(JSON.stringify({
+    success: true,
+    env: 'in-place',
+    target: repoDir,
+    installed: skillsFound,
+    updated: [],
+    reply: `飞书技能安装完成！路径：${repoDir}。已安装：${skillsFound.join(', ')}。`,
+  }));
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
+// Normal mode: copy skills to detected target directory
 // ---------------------------------------------------------------------------
 let detected = null;
 
@@ -109,7 +152,6 @@ if (!targetDir) {
   targetDir = detected.dir;
 }
 
-const repoDir = path.dirname(path.resolve(process.argv[1]));
 const installed = [];
 const updated   = [];
 const errors    = [];
