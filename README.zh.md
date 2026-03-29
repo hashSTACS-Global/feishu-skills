@@ -45,7 +45,7 @@
 直接告诉你的 [OpenClaw](https://github.com/openclaw/openclaw) 或 [EnClaws](https://github.com/hashSTACS-Global/EnClaws) Agent：
 
 ```
-帮我安装飞书技能包：https://github.com/hashSTACS-Global/feishu-skills
+帮我安装技能包：https://github.com/hashSTACS-Global/feishu-skills
 ```
 
 Agent 会自动 clone 仓库并执行 `node install.js`。

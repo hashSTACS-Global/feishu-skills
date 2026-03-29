@@ -45,7 +45,7 @@ Enables AI agents to read/write Feishu documents, send messages, manage calendar
 Tell your [OpenClaw](https://github.com/openclaw/openclaw) or [EnClaws](https://github.com/hashSTACS-Global/EnClaws) agent:
 
 ```
-Install the Feishu skill pack: https://github.com/hashSTACS-Global/feishu-skills
+Install skill pack: https://github.com/hashSTACS-Global/feishu-skills
 ```
 
 The agent will clone the repo and run `node install.js` automatically.
