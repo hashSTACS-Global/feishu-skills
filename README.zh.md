@@ -69,7 +69,7 @@ node install.js
 node install.js --target /自定义/skills路径
 ```
 
-> **Shell 脚本**（`install.sh` / `install.ps1`）作为备选方案保留，但推荐使用 `node install.js`，所有平台行为完全一致。
+> 安装统一使用 `node install.js`，所有平台行为完全一致。
 
 ---
 
@@ -203,8 +203,7 @@ feishu-skills/
 ├── feishu-image-ocr/
 │   ├── SKILL.md
 │   └── ocr.js                # 飞书 OCR API 调用
-├── install.sh                # Unix/macOS 安装脚本
-└── install.ps1               # Windows 安装脚本
+└── install.js                # 跨平台安装脚本
 ```
 
 ---

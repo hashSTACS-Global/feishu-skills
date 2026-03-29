@@ -69,7 +69,7 @@ To specify a custom target directory:
 node install.js --target /path/to/skills
 ```
 
-> **Shell scripts** (`install.sh` / `install.ps1`) are also provided as alternatives but `node install.js` is recommended as it works identically on all platforms.
+> Installation uses `node install.js`, which works identically on all platforms.
 
 ---
 
@@ -202,8 +202,7 @@ feishu-skills/
 ├── feishu-image-ocr/
 │   ├── SKILL.md
 │   └── ocr.js            # Feishu OCR API caller
-├── install.sh            # Unix/macOS installer
-└── install.ps1           # Windows installer
+└── install.js            # Cross-platform installer
 ```
 
 ---
