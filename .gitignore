@@ -2,3 +2,4 @@ node_modules/
 .python/
 __pycache__/
 *.pyc
+.claude/

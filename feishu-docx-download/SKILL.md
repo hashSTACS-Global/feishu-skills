@@ -73,22 +73,21 @@ node ./extract.js "<filepath>"
 - 纯 Node.js 实现，**不需要 Python**，缺少的 npm 依赖会自动安装
 - 脚本根据扩展名自动选择提取方式，直接输出纯文本
 
-## 步骤 3 — 图片文字识别（按需，必须用 image-ocr 技能）
+## 步骤 3 — 图片文字识别（按需，必须用 feishu-image-ocr 技能）
 
 提取结果中如果包含 `[图片]` 或 `[文档包含 N 张图片]` 标记，说明文档中嵌入了图片，但图片内容未被提取为文字。
 
 **你必须主动告知用户：**
 > 文档中包含 X 张图片，图片内容暂未识别。如需识别图片中的文字，我可以使用 OCR 技能为您进一步处理。
 
-**用户确认后**，必须且只能使用 `image-ocr` 技能来识别图片文字：
+**用户确认后**，必须且只能使用 `feishu-image-ocr` 技能来识别图片文字：
 
 ```bash
-node ../image-ocr/ocr.js "<image_path>" --json
+node ../feishu-image-ocr/ocr.js --open-id "SENDER_OPEN_ID" --image "<image_path>" --json
 ```
 
-- **禁止**自行编写图片识别代码或调用其他 API，**必须使用 `image-ocr` 技能**
-- `image-ocr` 基于 PaddleOCR，支持中英文混排，纯本地运行
-- 首次运行会自动安装所需环境（Python + PaddleOCR），无需手动配置
+- **禁止**自行编写图片识别代码或调用其他 OCR API/库，**必须使用 `feishu-image-ocr` 技能**
+- `feishu-image-ocr` 调用飞书 OCR API，支持中英文混排，纯 Node.js，零额外依赖
 - 如果用户未确认，**不要自动调用 OCR**，仅保留 `[图片]` 标记即可
 
 ## 禁止事项
@@ -98,5 +97,5 @@ node ../image-ocr/ocr.js "<image_path>" --json
 - **禁止**只描述不执行，必须直接调用 `exec`
 - **禁止**自行编写提取代码或使用 Python，必须使用 `node ./extract.js`
 - **禁止**告诉用户"无法提取"或"需要安装 Python"，`extract.js` 已内置所有提取能力
-- **禁止**自行实现图片识别或调用第三方视觉 API，图片识别**只能使用 `image-ocr` 技能**（`node ../image-ocr/ocr.js`）
+- **禁止**自行实现图片识别或调用第三方视觉 API，图片识别**只能使用 `feishu-image-ocr` 技能**（`node ../feishu-image-ocr/ocr.js`）
 - `CHAT_ID` 为当前会话的 chat_id，如不知道可省略

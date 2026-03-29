@@ -27,7 +27,7 @@ const SKILLS = [
   'feishu-task',
   'feishu-bitable',
   'feishu-docx-download',
-  'image-ocr',
+  'feishu-image-ocr',
 ];
 
 // Files/dirs to exclude when copying
