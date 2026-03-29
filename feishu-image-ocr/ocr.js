@@ -3,21 +3,21 @@
  * Image OCR via Feishu API.
  *
  * Usage:
- *   node ./ocr.js --open-id "ou_xxx" --image "<image_path>"
- *   node ./ocr.js --open-id "ou_xxx" --image "<image_path>" --json
+ *   node ./ocr.js --image "<image_path>"
+ *   node ./ocr.js --image "<image_path>" --json
  *
  * Options:
- *   --open-id    Feishu open_id of the requesting user (required)
  *   --image      Path to image file (required)
  *   --json       Output as JSON with text_list and metadata
  *
  * Supported formats: png, jpg, jpeg, bmp, gif, webp, tiff, tif
  * Image will be base64-encoded and sent to Feishu OCR API.
+ * Uses tenant_access_token (app-level auth, no user authorization needed).
  */
 
 const fs = require('fs');
 const path = require('path');
-const { getConfig, getValidToken } = require(path.join(__dirname, '../feishu-auth/token-utils.js'));
+const { getConfig } = require(path.join(__dirname, '../feishu-auth/token-utils.js'));
 
 // ---------------------------------------------------------------------------
 // CLI args
@@ -28,7 +28,6 @@ function getArg(name) {
   return i !== -1 && args[i + 1] !== undefined ? args[i + 1] : null;
 }
 
-const openId    = getArg('--open-id');
 const imagePath = getArg('--image');
 const jsonMode  = args.includes('--json');
 
@@ -42,9 +41,6 @@ function fail(obj) {
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
-if (!openId) {
-  fail({ error: 'missing_arg', message: '--open-id is required' });
-}
 if (!imagePath) {
   fail({ error: 'missing_arg', message: '--image is required' });
 }
@@ -66,6 +62,25 @@ if (fileSize < 100) {
 }
 
 // ---------------------------------------------------------------------------
+// Tenant access token (app-level, no user auth needed)
+// ---------------------------------------------------------------------------
+async function getTenantAccessToken(appId, appSecret) {
+  const res = await fetch(
+    'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
+    },
+  );
+  const json = await res.json();
+  if (json.code !== 0) {
+    fail({ error: 'tenant_token_error', code: json.code, message: json.msg });
+  }
+  return json.tenant_access_token;
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
@@ -77,12 +92,8 @@ async function main() {
     fail({ error: 'config_error', message: e.message });
   }
 
-  // Get valid OAuth token
-  const accessToken = await getValidToken(openId, cfg.appId, cfg.appSecret);
-  if (!accessToken) {
-    console.log(JSON.stringify({ error: 'auth_required' }));
-    process.exit(0);
-  }
+  // Get tenant access token (app-level, no user authorization flow needed)
+  const accessToken = await getTenantAccessToken(cfg.appId, cfg.appSecret);
 
   // Read and base64-encode image
   const imageBuffer = fs.readFileSync(imagePath);
@@ -109,7 +120,19 @@ async function main() {
   }
 
   if (data.code !== 0) {
-    fail({ error: 'api_error', code: data.code, message: data.msg || 'OCR API returned an error.' });
+    // Common error: permission not granted
+    const msg = data.msg || '';
+    if (data.code === 99991400 || data.code === 99991672 || /permission|scope|not support/i.test(msg)) {
+      const permUrl = `https://open.feishu.cn/app/${cfg.appId}/permission`;
+      fail({
+        error: 'permission_required',
+        code: data.code,
+        message: msg,
+        permission_url: permUrl,
+        reply: `飞书 OCR 权限未开通。请点击链接开通：${permUrl} → 搜索 optical_char_recognition:image → 开通并发布新版本后重试。`,
+      });
+    }
+    fail({ error: 'api_error', code: data.code, message: msg });
   }
 
   const textList = data.data?.text_list || [];

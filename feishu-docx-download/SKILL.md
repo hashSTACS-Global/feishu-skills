@@ -83,7 +83,7 @@ node ./extract.js "<filepath>"
 **用户确认后**，必须且只能使用 `feishu-image-ocr` 技能来识别图片文字：
 
 ```bash
-node ../feishu-image-ocr/ocr.js --open-id "SENDER_OPEN_ID" --image "<image_path>" --json
+node ../feishu-image-ocr/ocr.js --image "<image_path>" --json
 ```
 
 - **禁止**自行编写图片识别代码或调用其他 OCR API/库，**必须使用 `feishu-image-ocr` 技能**

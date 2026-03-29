@@ -3,20 +3,21 @@ name: feishu-image-ocr
 description: |
   通用图片文字识别（OCR），调用飞书 OCR API，支持中英文混排。
   支持 png/jpg/jpeg/bmp/gif/webp/tiff 等常见图片格式。
-  纯 Node.js 实现，零额外依赖，复用 feishu-auth 授权体系。
+  纯 Node.js 实现，零额外依赖，使用应用级 tenant_access_token，无需用户授权。
 inline: true
 ---
 
 # feishu-image-ocr
 
 通用图片 OCR 文字识别。调用飞书 OCR API，中英文效果好，纯 Node.js，零额外依赖。
+使用应用级 tenant_access_token，**无需用户授权**，只要飞书应用开通了 `ai:image_sentence` 权限即可直接使用。
 
 ⚠️ **读完本文件后，不要检查文件是否存在、不要检查环境、不要列目录。脚本文件已就绪，直接用 `exec` 工具执行下方命令。**
 
 ## 使用方式
 
 ```bash
-node ./ocr.js --open-id "SENDER_OPEN_ID" --image "<image_path>"
+node ./ocr.js --image "<image_path>"
 ```
 
 ### 可选参数
@@ -46,24 +47,22 @@ node ./ocr.js --open-id "SENDER_OPEN_ID" --image "<image_path>"
 其他技能可直接通过 exec 调用：
 
 ```bash
-node ../feishu-image-ocr/ocr.js --open-id "SENDER_OPEN_ID" --image "<image_path>" --json
+node ../feishu-image-ocr/ocr.js --image "<image_path>" --json
 ```
 
 例如 `feishu-docx-download` 提取 docx/pptx 中嵌入图片后，可调用本技能识别图片文字。
 
-## 需要授权时
+## 权限不足时
 
-若返回 `{"error":"auth_required"}`，执行：
+若返回 `{"error":"permission_required"}`，说明飞书应用未开通 OCR 权限。返回的 JSON 中包含 `permission_url` 字段，是权限管理页的直达链接。**必须将该链接发给用户：**
 
-```bash
-node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id "CHAT_ID" --timeout 60
-```
-
-授权成功后重新执行 OCR 命令。
+> OCR 权限未开通，请点击下方链接开通：
+> {permission_url}
+> 进入后搜索 `optical_char_recognition:image` → 开通 → 发布新版本后即可使用。
 
 ## 权限要求
 
-需要飞书应用开通 `recognition:image` 权限。
+需要飞书应用开通 `optical_char_recognition:image` 权限（应用级权限，管理员在飞书开放平台后台开通即可，无需用户逐个授权）。
 
 ## 禁止事项
 
