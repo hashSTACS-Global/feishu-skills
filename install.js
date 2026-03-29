@@ -31,7 +31,7 @@ const SKILLS = [
 ];
 
 // Files/dirs to exclude when copying
-const EXCLUDE = ['.tokens', 'node_modules', '.python', '__pycache__', '*.bak', '*.pyc'];
+const EXCLUDE = ['.tokens', 'node_modules', '.python', '__pycache__', '*.bak', '*.pyc', 'config.json'];
 
 function shouldExclude(name) {
   return EXCLUDE.some(p => {
