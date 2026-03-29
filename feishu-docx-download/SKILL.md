@@ -1,8 +1,8 @@
 ---
 name: feishu-docx-download
 description: |
-  从飞书 Wiki 下载附件并提取正文文本，支持 docx/doc/pdf/pptx/ppt/xlsx/xls/html/rtf/epub/txt/csv 等格式。
-  仅适用于 Wiki 中以附件形式上传的文件（obj_type = file），在线云文档请用 feishu-fetch-doc。
+  从飞书云盘或 Wiki 下载文件附件并提取正文文本，支持 docx/doc/pdf/pptx/ppt/xlsx/xls/html/rtf/epub/txt/csv 等格式。
+  支持 /wiki/ 和 /file/ 两种链接。在线云文档请用 feishu-fetch-doc。
 overrides: feishu_wiki_space_node, feishu_drive_file, feishu_pre_auth
 inline: true
 ---
@@ -18,6 +18,7 @@ inline: true
 | 含 `/docx/` 或 `/docs/` | 在线云文档 | 用 **feishu-fetch-doc** |
 | 含 `/wiki/`，`obj_type` 为 `doc`/`docx` | Wiki 云文档 | 用 **feishu-fetch-doc** |
 | 含 `/wiki/`，`obj_type` 为 `file` | Wiki 附件 | **使用本技能** ✓ |
+| 含 `/file/` | 云盘文件 | **使用本技能** ✓ |
 
 ## 执行前确认
 
@@ -25,13 +26,17 @@ inline: true
 
 | 参数 | 何时需要询问 |
 |---|---|
-| `--url` / `--file-token` | 用户未提供飞书 Wiki 链接或 file token |
+| `--url` / `--file-token` | 用户未提供飞书链接或 file token |
 
 ## 步骤 1 — 下载文件
 
 ```bash
-node ./download-doc.js --open-id "SENDER_OPEN_ID" --url "FEISHU_WIKI_URL"
+node ./download-doc.js --open-id "SENDER_OPEN_ID" --url "FEISHU_URL"
 ```
+
+支持的 URL 格式：
+- Wiki 附件：`https://xxx.feishu.cn/wiki/TOKEN`
+- 云盘文件：`https://xxx.feishu.cn/file/TOKEN`
 
 也可直接传 file_token：
 
@@ -39,9 +44,9 @@ node ./download-doc.js --open-id "SENDER_OPEN_ID" --url "FEISHU_WIKI_URL"
 node ./download-doc.js --open-id "SENDER_OPEN_ID" --file-token "FILE_TOKEN" --type "docx"
 ```
 
-可选参数：`--output-dir ./downloads`、`--output 自定义文件名.docx`
+可选参数：`--output-dir <目录>`、`--output 自定义文件名.docx`
 
-脚本输出 JSON，其中 `file_path` 为本地路径，`file_type` 为扩展名，`file_name` 为文件名。
+文件默认下载到当前用户的工作空间目录。脚本输出 JSON，其中 `file_path` 为本地路径，`file_type` 为扩展名。
 
 ## 需要授权时
 
@@ -55,167 +60,43 @@ node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id
 - `{"status":"polling_timeout"}` → **立即重新执行此 auth 命令**（不会重复发卡片）
 - `CHAT_ID` 不知道可省略
 
-## 步骤 2 — 提取文本
+## 步骤 2 — 提取文本（必须执行）
 
-根据 `file_type` 选择对应的 Python 代码用 `exec` 执行（将 `<filepath>` 替换为实际路径）：
+⚠️ **下载成功后必须立即执行此命令提取文本，不要跳过，不要用其他方式替代。**
 
-### docx
-
-```python
-import os, zipfile, re
-path = "<filepath>"
-size = os.path.getsize(path)
-if size < 4096:
-    print("ERROR: 文件太小，可能是预览版，请确认 drive:file:download 权限已开通。")
-else:
-    with zipfile.ZipFile(path) as z:
-        if 'word/document.xml' not in z.namelist():
-            print("ERROR: 缺少 word/document.xml，文件不完整。")
-        else:
-            xml = z.read('word/document.xml').decode('utf-8', errors='ignore')
-            text = re.sub(r'<[^>]+>', ' ', xml)
-            print(re.sub(r'\s+', ' ', text).strip())
+```bash
+node ./extract.js "<filepath>"
 ```
 
-### pdf
+- `<filepath>` 替换为步骤 1 返回的 `file_path`
+- 支持格式：docx、pdf、pptx、xlsx、xls、doc、ppt、rtf、epub、html、htm、txt、csv、md
+- 纯 Node.js 实现，**不需要 Python**，缺少的 npm 依赖会自动安装
+- 脚本根据扩展名自动选择提取方式，直接输出纯文本
 
-```python
-import subprocess, sys, os
-path = "<filepath>"
-if os.path.getsize(path) < 1024:
-    print("ERROR: 文件太小，可能是预览版。")
-else:
-    try: import fitz
-    except ImportError:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "PyMuPDF", "-q"]); import fitz
-    doc = fitz.open(path)
-    print("\n".join(page.get_text() for page in doc).strip())
-    doc.close()
+## 步骤 3 — 图片文字识别（按需，必须用 image-ocr 技能）
+
+提取结果中如果包含 `[图片]` 或 `[文档包含 N 张图片]` 标记，说明文档中嵌入了图片，但图片内容未被提取为文字。
+
+**你必须主动告知用户：**
+> 文档中包含 X 张图片，图片内容暂未识别。如需识别图片中的文字，我可以使用 OCR 技能为您进一步处理。
+
+**用户确认后**，必须且只能使用 `image-ocr` 技能来识别图片文字：
+
+```bash
+node ../image-ocr/ocr.js "<image_path>" --json
 ```
 
-### pptx
-
-```python
-import subprocess, sys, os
-path = "<filepath>"
-try: from pptx import Presentation
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "python-pptx", "-q"]); from pptx import Presentation
-prs = Presentation(path)
-parts = []
-for i, slide in enumerate(prs.slides, 1):
-    texts = [p.text.strip() for shape in slide.shapes if shape.has_text_frame for p in shape.text_frame.paragraphs if p.text.strip()]
-    if texts: parts += [f"--- 第{i}页 ---"] + texts
-print("\n".join(parts))
-```
-
-### xlsx
-
-```python
-import subprocess, sys
-path = "<filepath>"
-try: from openpyxl import load_workbook
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"]); from openpyxl import load_workbook
-wb = load_workbook(path, read_only=True, data_only=True)
-for name in wb.sheetnames:
-    print(f"--- {name} ---")
-    for row in wb[name].iter_rows(values_only=True):
-        cells = [str(c) if c is not None else "" for c in row]
-        if any(cells): print("\t".join(cells))
-wb.close()
-```
-
-### xls
-
-```python
-import subprocess, sys
-path = "<filepath>"
-try: import xlrd
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "xlrd", "-q"]); import xlrd
-wb = xlrd.open_workbook(path)
-for sheet in wb.sheets():
-    print(f"--- {sheet.name} ---")
-    for r in range(sheet.nrows):
-        cells = [str(sheet.cell_value(r, c)) for c in range(sheet.ncols)]
-        if any(c.strip() for c in cells): print("\t".join(cells))
-```
-
-### html / htm
-
-```python
-import re
-path = "<filepath>"
-for enc in ['utf-8', 'gb18030', 'gbk', 'latin-1']:
-    try: html = open(path, encoding=enc).read(); break
-    except UnicodeDecodeError: continue
-html = re.sub(r'<(script|style)[^>]*>.*?</\1>', '', html, flags=re.DOTALL|re.IGNORECASE)
-text = re.sub(r'<[^>]+>', ' ', html)
-text = text.replace('&nbsp;',' ').replace('&amp;','&').replace('&lt;','<').replace('&gt;','>')
-print(re.sub(r'\s+', ' ', text).strip())
-```
-
-### txt / csv / md 等纯文本
-
-```python
-path = "<filepath>"
-for enc in ['utf-8', 'gb18030', 'gbk', 'latin-1']:
-    try: print(open(path, encoding=enc).read()); break
-    except UnicodeDecodeError: continue
-```
-
-### doc / ppt（旧版 Office 97-2003）
-
-```python
-import subprocess, sys, re
-path = "<filepath>"
-try: import olefile
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "olefile", "-q"]); import olefile
-ole = olefile.OleFileIO(path)
-stream = 'WordDocument' if path.endswith('.doc') else 'PowerPoint Document'
-if ole.exists(stream):
-    data = ole.openstream(stream).read().decode('utf-8', errors='ignore')
-    text = re.sub(r'[^\x20-\x7E\u4e00-\u9fff\n\r\t]', '', data)
-    print(re.sub(r'\s+', ' ', text).strip() or "WARN: 旧版格式提取内容可能不完整，建议转换为新版格式后重新上传。")
-else:
-    print(f"ERROR: 无法识别文件结构（找不到 {stream}）")
-ole.close()
-```
-
-### rtf
-
-```python
-import subprocess, sys
-path = "<filepath>"
-try: from striprtf.striprtf import rtf_to_text
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "striprtf", "-q"]); from striprtf.striprtf import rtf_to_text
-for enc in ['utf-8', 'gb18030', 'gbk', 'latin-1']:
-    try: print(rtf_to_text(open(path, encoding=enc).read()).strip()); break
-    except UnicodeDecodeError: continue
-```
-
-### epub
-
-```python
-import zipfile, re
-path = "<filepath>"
-with zipfile.ZipFile(path) as z:
-    parts = []
-    for name in z.namelist():
-        if name.endswith(('.xhtml','.html','.htm')) and 'META-INF' not in name:
-            html = z.read(name).decode('utf-8', errors='ignore')
-            html = re.sub(r'<(script|style)[^>]*>.*?</\1>', '', html, flags=re.DOTALL|re.IGNORECASE)
-            text = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', html)).strip()
-            if text: parts.append(text)
-    print("\n\n".join(parts))
-```
+- **禁止**自行编写图片识别代码或调用其他 API，**必须使用 `image-ocr` 技能**
+- `image-ocr` 基于 PaddleOCR，支持中英文混排，纯本地运行
+- 首次运行会自动安装所需环境（Python + PaddleOCR），无需手动配置
+- 如果用户未确认，**不要自动调用 OCR**，仅保留 `[图片]` 标记即可
 
 ## 禁止事项
 
 - **禁止**检查文件、列目录、检查环境，脚本已就绪
 - **禁止**调用任何 `feishu_` 开头的工具
 - **禁止**只描述不执行，必须直接调用 `exec`
+- **禁止**自行编写提取代码或使用 Python，必须使用 `node ./extract.js`
+- **禁止**告诉用户"无法提取"或"需要安装 Python"，`extract.js` 已内置所有提取能力
+- **禁止**自行实现图片识别或调用第三方视觉 API，图片识别**只能使用 `image-ocr` 技能**（`node ../image-ocr/ocr.js`）
 - `CHAT_ID` 为当前会话的 chat_id，如不知道可省略
