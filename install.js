@@ -52,8 +52,25 @@ let targetDir = targetIdx !== -1 ? args[targetIdx + 1] : null;
 // ---------------------------------------------------------------------------
 function detectTarget() {
   const home = os.homedir();
+  const cwd = process.cwd().replace(/\\/g, '/').toLowerCase();
 
-  // 1. EnClaws: ~/.enclaws/tenants/<tenant-id>/skills/
+  // 1. Detect by cwd — most reliable when both environments coexist
+  if (cwd.includes('.openclaw')) {
+    return { dir: path.join(home, '.openclaw', 'workspace', 'skills'), env: 'OpenClaw' };
+  }
+  if (cwd.includes('.enclaws')) {
+    const enclawsBase = path.join(home, '.enclaws', 'tenants');
+    if (fs.existsSync(enclawsBase)) {
+      const tenants = fs.readdirSync(enclawsBase).filter(f => {
+        return fs.statSync(path.join(enclawsBase, f)).isDirectory();
+      });
+      if (tenants.length > 0) {
+        return { dir: path.join(enclawsBase, tenants[0], 'skills'), env: 'EnClaws' };
+      }
+    }
+  }
+
+  // 2. Fallback: check which environment exists
   const enclawsBase = path.join(home, '.enclaws', 'tenants');
   if (fs.existsSync(enclawsBase)) {
     const tenants = fs.readdirSync(enclawsBase).filter(f => {
@@ -64,7 +81,6 @@ function detectTarget() {
     }
   }
 
-  // 2. OpenClaw: ~/.openclaw/workspace/skills/
   const openclawBase = path.join(home, '.openclaw');
   if (fs.existsSync(openclawBase)) {
     return { dir: path.join(openclawBase, 'workspace', 'skills'), env: 'OpenClaw' };
