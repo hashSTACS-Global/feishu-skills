@@ -12,18 +12,22 @@ description: |
 
 ## 安装步骤
 
-依次执行以下 3 条命令：
+依次执行以下 4 条命令：
 
 ```bash
-git clone https://github.com/hashSTACS-Global/feishu-skills.git /tmp/feishu-skills
+curl -sL https://github.com/hashSTACS-Global/feishu-skills/archive/refs/heads/main.zip -o /tmp/feishu-skills.zip
 ```
 
 ```bash
-node /tmp/feishu-skills/install.js
+unzip -qo /tmp/feishu-skills.zip -d /tmp/
 ```
 
 ```bash
-rm -rf /tmp/feishu-skills
+node /tmp/feishu-skills-main/install.js
+```
+
+```bash
+rm -rf /tmp/feishu-skills-main /tmp/feishu-skills.zip
 ```
 
 脚本会自动检测环境（EnClaws / OpenClaw）并将所有技能安装到正确的 skills 目录。
@@ -36,9 +40,9 @@ install.js 输出 JSON，检查 `success` 字段：
 
 ## 禁止事项
 
-- **禁止**将仓库 clone 到 skills 目录或工作空间目录
+- **禁止**将文件下载到 skills 目录或工作空间目录
 - **禁止**手动复制技能目录
 - **禁止**检查文件、列目录、检查环境
 - **禁止**进行飞书权限预检或授权操作，本技能仅做文件安装，与飞书权限无关
 - **禁止**只描述不执行，必须直接用 `exec` 执行上面的命令
-- **禁止**让用户手动执行命令，系统支持 git/node 命令，直接用 `exec` 执行
+- **禁止**让用户手动执行命令，系统支持 curl/unzip/node 命令，直接用 `exec` 执行
