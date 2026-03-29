@@ -6,38 +6,33 @@ description: |
 
 # feishu-skills 安装
 
-⚠️ **禁止直接将仓库 clone 到 skills 目录！必须 clone 到工作空间目录下，再执行 install.js 安装。**
+⚠️ **读完本文件后，直接按步骤执行命令，不要检查环境、不要列目录、不要只描述不执行。**
 
 ## 安装步骤
 
-### 1. 确定工作空间目录
-
-| 环境 | 工作空间目录 |
-|------|-----------|
-| EnClaws | `~/.enclaws/tenants/<tenant-id>/` |
-| OpenClaw | `~/.openclaw/workspace/` |
-
-### 2. Clone 到工作空间目录（不是 skills 目录）
+### 1. Clone 仓库到当前工作目录下（不是 skills 目录）
 
 ```bash
-# EnClaws
-git clone https://github.com/hashSTACS-Global/feishu-skills.git ~/.enclaws/tenants/<tenant-id>/feishu-skills
-
-# OpenClaw
-git clone https://github.com/hashSTACS-Global/feishu-skills.git ~/.openclaw/workspace/feishu-skills
+git clone https://github.com/hashSTACS-Global/feishu-skills.git ./feishu-skills
 ```
 
-### 3. 执行安装脚本
+### 2. 执行安装脚本
 
 ```bash
-node <工作空间目录>/feishu-skills/install.js
+node ./feishu-skills/install.js
 ```
 
-脚本会自动检测环境并将所有技能安装到正确的 skills 目录。
+脚本会自动检测环境（EnClaws / OpenClaw）并将所有技能安装到正确的 skills 目录。
+
+### 3. 确认安装结果
+
+脚本输出 JSON，检查 `success` 字段：
+- `true` → 安装成功，将 `reply` 字段内容回复给用户
+- `false` → 安装失败，将 `message` 字段内容回复给用户
 
 ## 禁止事项
 
-- **禁止**直接 clone 或复制整个仓库到 skills 目录
-- **禁止**手动复制技能目录到 skills 目录
-- **禁止**修改目录结构
-- 必须使用 install.js 安装
+- **禁止**直接 clone 到 skills 目录
+- **禁止**手动复制技能目录
+- **禁止**检查文件、列目录、检查环境
+- **禁止**只描述不执行，必须直接用 `exec` 执行上面的命令
