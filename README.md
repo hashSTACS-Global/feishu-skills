@@ -21,6 +21,7 @@ Enables AI agents to read/write Feishu documents, send messages, manage calendar
 | **feishu-task** | Create / query / update tasks and task lists |
 | **feishu-bitable** | Full CRUD on Bitable apps, tables, fields, records, and views |
 | **feishu-docx-download** | Download file attachments from Feishu Wiki and extract text content (docx/pdf/pptx/xlsx/xls/html/rtf/epub/txt/csv, etc.) |
+| **image-ocr** | Universal image OCR (PaddleOCR). Chinese/English, runs locally, auto-installs Python + deps on first run. |
 
 ---
 
@@ -196,7 +197,12 @@ feishu-skills/
 │   └── bitable.js
 ├── feishu-docx-download/
 │   ├── SKILL.md
-│   └── download-doc.js
+│   ├── download-doc.js
+│   └── extract.js
+├── image-ocr/
+│   ├── SKILL.md
+│   ├── ocr.js            # Node.js entry (auto-installs Python if missing)
+│   └── ocr.py            # PaddleOCR core
 ├── install.sh            # Unix/macOS installer
 └── install.ps1           # Windows installer
 ```

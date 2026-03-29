@@ -21,6 +21,7 @@
 | **feishu-task** | 创建 / 查询 / 更新任务和任务清单 |
 | **feishu-bitable** | 多维表格应用、数据表、字段、记录、视图的完整增删改查 |
 | **feishu-docx-download** | 下载飞书 Wiki 中的附件文件并提取正文文本，支持 docx/pdf/pptx/xlsx/xls/html/rtf/epub/txt/csv 等格式 |
+| **image-ocr** | 通用图片 OCR 文字识别（基于 PaddleOCR），支持中英文混排，纯本地运行，首次运行自动安装 Python 及依赖 |
 
 ---
 
@@ -197,7 +198,12 @@ feishu-skills/
 │   └── bitable.js
 ├── feishu-docx-download/
 │   ├── SKILL.md
-│   └── download-doc.js
+│   ├── download-doc.js
+│   └── extract.js
+├── image-ocr/
+│   ├── SKILL.md
+│   ├── ocr.js                # Node.js 入口（自动安装 Python）
+│   └── ocr.py                # PaddleOCR 核心
 ├── install.sh                # Unix/macOS 安装脚本
 └── install.ps1               # Windows 安装脚本
 ```

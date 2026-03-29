@@ -27,10 +27,11 @@ const SKILLS = [
   'feishu-task',
   'feishu-bitable',
   'feishu-docx-download',
+  'image-ocr',
 ];
 
 // Files/dirs to exclude when copying
-const EXCLUDE = ['.tokens', 'node_modules', '*.bak'];
+const EXCLUDE = ['.tokens', 'node_modules', '.python', '__pycache__', '*.bak', '*.pyc'];
 
 function shouldExclude(name) {
   return EXCLUDE.some(p => {
