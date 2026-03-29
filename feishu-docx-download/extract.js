@@ -44,9 +44,9 @@ function extractDocx(filePath) {
   }
   const xml = entry.getData().toString('utf-8');
 
-  // Count embedded images/objects
-  const imageCount = (xml.match(/<a:blip\b/g) || []).length
-    + (xml.match(/<wp:inline\b/g) || []).length;
+  // Count embedded images (wp:inline wraps a:blip, only count once)
+  const imageCount = (xml.match(/<wp:inline\b/g) || []).length
+    || (xml.match(/<a:blip\b/g) || []).length;
   const oleCount = (xml.match(/<o:OLEObject\b/g) || []).length;
 
   const lines = [];

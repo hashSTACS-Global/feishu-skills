@@ -50,7 +50,7 @@ node ./download-doc.js --open-id "SENDER_OPEN_ID" --file-token "FILE_TOKEN" --ty
 
 ## 需要授权时
 
-若返回 `{"error":"auth_required"}`，执行：
+若返回 `{"error":"auth_required"}`，**不要询问用户是否授权，直接立即执行以下命令发送授权链接：**
 
 ```bash
 node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id "CHAT_ID" --timeout 60

@@ -54,15 +54,17 @@ node ../feishu-image-ocr/ocr.js --image "<image_path>" --json
 
 ## 权限不足时
 
-若返回 `{"error":"permission_required"}`，说明飞书应用未开通 OCR 权限。返回的 JSON 中包含 `permission_url` 字段，是权限管理页的直达链接。**必须将该链接发给用户：**
+若返回 `{"error":"permission_required"}`，说明飞书应用未开通 OCR 权限。返回的 JSON 中包含 `permission_url` 字段。**必须告知用户此权限需要管理员操作：**
 
-> OCR 权限未开通，请点击下方链接开通：
+> OCR 权限未开通，此权限需要**飞书应用管理员**在飞书开放平台后台开通。请联系管理员访问以下链接：
 > {permission_url}
-> 进入后搜索 `optical_char_recognition:image` → 开通 → 发布新版本后即可使用。
+> 搜索 `optical_char_recognition:image` → 开通 → 发布新版本后即可使用。
+
+**注意：不要让普通用户自行去开通，普通用户没有权限操作飞书开放平台后台。**
 
 ## 权限要求
 
-需要飞书应用开通 `optical_char_recognition:image` 权限（应用级权限，管理员在飞书开放平台后台开通即可，无需用户逐个授权）。
+需要飞书应用管理员在飞书开放平台后台开通 `optical_char_recognition:image` 权限（应用级权限，开通一次所有用户可用，无需用户逐个授权）。
 
 ## 禁止事项
 

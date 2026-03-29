@@ -129,7 +129,7 @@ async function main() {
         code: data.code,
         message: msg,
         permission_url: permUrl,
-        reply: `飞书 OCR 权限未开通。请点击链接开通：${permUrl} → 搜索 optical_char_recognition:image → 开通并发布新版本后重试。`,
+        reply: `飞书 OCR 权限未开通。此权限需要飞书应用管理员操作开通，请联系管理员：访问 ${permUrl} → 搜索 optical_char_recognition:image → 开通并发布新版本。`,
       });
     }
     fail({ error: 'api_error', code: data.code, message: msg });
