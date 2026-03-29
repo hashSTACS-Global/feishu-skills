@@ -129,7 +129,7 @@ async function main() {
         code: data.code,
         message: msg,
         permission_url: permUrl,
-        reply: `⚠️ **飞书 OCR 权限未开通（需要管理员操作）**\n\n此权限为应用级权限，**普通用户无法自行开通，必须由飞书应用管理员操作**。\n\n需要开通的权限：\`optical_char_recognition:image\`\n\n请联系管理员按以下步骤操作：\n1. 打开 [飞书开放平台-权限管理](${permUrl})\n2. 切换到「**应用身份权限 tenant_access_token**」tab\n3. 搜索并开通相关权限`,
+        reply: `⚠️ **飞书 OCR 权限未开通（需要管理员操作）**\n\n**图片内容无法识别，禁止使用其他方式替代识别，禁止猜测或编造图片内容。**\n\n此权限为应用级权限，**普通用户无法自行开通，必须由飞书应用管理员操作**。\n\n需要开通的权限：\`optical_char_recognition:image\`\n\n请联系管理员按以下步骤操作：\n1. 打开 [飞书开放平台-权限管理](${permUrl})\n2. 切换到「**应用身份权限 tenant_access_token**」tab\n3. 搜索并开通相关权限`,
       });
     }
     fail({ error: 'api_error', code: data.code, message: msg });
