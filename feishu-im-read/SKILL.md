@@ -44,3 +44,9 @@ node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id
 - `{"status":"authorized"}` → 重新执行原命令
 - `{"status":"polling_timeout"}` → **立即重新执行此 auth 命令**（不会重复发卡片）
 - `CHAT_ID` 不知道可省略
+
+## 权限不足时
+
+若返回 `{"error":"permission_required"}`，说明飞书应用未开通所需权限。**必须直接将返回 JSON 中的 `reply` 字段内容原样发送给用户**，其中已包含权限管理页面的超链接和操作步骤。
+
+**注意：不要自行组织文案，不要省略链接，直接用 `reply` 字段内容回复用户。**
