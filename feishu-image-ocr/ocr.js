@@ -123,13 +123,13 @@ async function main() {
     // Common error: permission not granted
     const msg = data.msg || '';
     if (data.code === 99991400 || data.code === 99991672 || /permission|scope|not support/i.test(msg)) {
-      const permUrl = `https://open.feishu.cn/app/${cfg.appId}/permission`;
+      const permUrl = `https://open.feishu.cn/app/${cfg.appId}/auth?q=optical_char_recognition:image`;
       fail({
         error: 'permission_required',
         code: data.code,
         message: msg,
         permission_url: permUrl,
-        reply: `飞书 OCR 权限未开通。此权限需要飞书应用管理员操作开通，请联系管理员：访问 ${permUrl} → 搜索 optical_char_recognition:image → 开通并发布新版本。`,
+        reply: `⚠️ **飞书 OCR 权限未开通**\n\n需要开通的权限：\`optical_char_recognition:image\`\n\n请联系管理员操作：\n1. 打开 [飞书开放平台-权限管理](${permUrl})\n2. 切换到「**应用身份权限 tenant_access_token**」tab\n3. 搜索并开通相关权限`,
       });
     }
     fail({ error: 'api_error', code: data.code, message: msg });

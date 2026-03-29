@@ -401,14 +401,24 @@ if (!extractor) {
 
 Promise.resolve(extractor(filePath)).then(text => {
   text = text || '';
+  // Detect embedded images
+  const imageMatch = text.match(/\[文档包含 (\d+) 张图片\]/);
+  const imageCount = imageMatch ? parseInt(imageMatch[1], 0) : (text.match(/\[图片\]/g) || []).length;
   if (jsonMode) {
-    console.log(JSON.stringify({
+    const result = {
       success: true,
       file_path: path.resolve(filePath),
       format: ext,
       char_count: text.length,
       text,
-    }));
+    };
+    if (imageCount > 0) {
+      const mediaDir = path.join(path.dirname(path.resolve(filePath)), 'word', 'media');
+      result.image_count = imageCount;
+      result.image_dir = mediaDir;
+      result.hint = `文档包含 ${imageCount} 张图片，如需识别图片文字，请使用 feishu-image-ocr 技能：node ../feishu-image-ocr/ocr.js --image "<图片路径>" --json。禁止自行编写 OCR 代码。`;
+    }
+    console.log(JSON.stringify(result));
   } else {
     console.log(text);
   }
