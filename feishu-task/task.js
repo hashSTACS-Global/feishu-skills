@@ -311,7 +311,7 @@ async function main() {
         error: 'permission_required',
         message: msg,
         permission_url: permUrl,
-        reply: `⚠️ **飞书应用权限不足**\n\n需要开通的权限：\`task\`\n\n请联系管理员操作：\n1. 打开 [飞书开放平台-权限管理](${permUrl})\n2. 搜索并开通相关权限`,
+        reply: `⚠️ **飞书应用权限不足（需要管理员操作）**\n\n需要开通的权限：\`task\`\n\n请联系管理员操作：\n1. 打开 [飞书开放平台-权限管理](${permUrl})\n2. 搜索并开通相关权限`,
       });
     }
     die({ error: 'api_error', message: err.message });
