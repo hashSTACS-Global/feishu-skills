@@ -383,6 +383,16 @@ async function main() {
         message: '飞书 token 已失效，请重新授权（调用 feishu-auth --init）',
       });
     }
+    const msg = err.message || '';
+    if (msg.includes('99991400') || msg.includes('99991672') || /permission|scope|not support|tenant/i.test(msg)) {
+      const permUrl = `https://open.feishu.cn/app/${cfg.appId}/auth?q=docx:document`;
+      die({
+        error: 'permission_required',
+        message: msg,
+        permission_url: permUrl,
+        reply: `飞书应用权限不足，请联系管理员访问 ${permUrl} 开通 docx:document 相关权限并发布新版本。`,
+      });
+    }
     die({ error: 'api_error', message: err.message });
   }
 }
