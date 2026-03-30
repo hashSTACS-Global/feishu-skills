@@ -53,10 +53,17 @@ let targetDir = targetIdx !== -1 ? args[targetIdx + 1] : null;
 function detectTarget() {
   const home = os.homedir();
 
-  // 1. Detect by env var — EnClaws injects ENCLAWS_USER_WORKSPACE at runtime
+  // 1. Detect by env var — EnClaws injects ENCLAWS_USER_WORKSPACE at runtime.
+  //    Extract tenantId from workspace path and install to tenant-level skills dir.
   const enclawsWorkspace = process.env.ENCLAWS_USER_WORKSPACE;
   if (enclawsWorkspace) {
-    return { dir: path.join(enclawsWorkspace, 'skills'), env: 'EnClaws' };
+    const match = enclawsWorkspace.replace(/\\/g, '/').match(/tenants\/([^/]+)\//);
+    if (match) {
+      const tenantId = match[1];
+      return { dir: path.join(home, '.enclaws', 'tenants', tenantId, 'skills'), env: 'EnClaws' };
+    }
+    // Fallback: env var exists but tenant path not parseable — use generic tenants dir
+    return { dir: path.join(home, '.enclaws', 'tenants', 'skills'), env: 'EnClaws' };
   }
 
   // 2. No EnClaws env var → check OpenClaw
@@ -65,7 +72,7 @@ function detectTarget() {
     return { dir: path.join(openclawBase, 'workspace', 'skills'), env: 'OpenClaw' };
   }
 
-  // 3. Fallback: check EnClaws directory structure
+  // 3. Fallback: check EnClaws directory structure, pick first tenant
   const enclawsBase = path.join(home, '.enclaws', 'tenants');
   if (fs.existsSync(enclawsBase)) {
     const tenants = fs.readdirSync(enclawsBase).filter(f => {
@@ -142,6 +149,13 @@ if (isInPlace && !targetDir) {
 // ---------------------------------------------------------------------------
 // Normal mode: copy skills to detected target directory
 // ---------------------------------------------------------------------------
+const enclawsWsEnv = process.env.ENCLAWS_USER_WORKSPACE;
+if (enclawsWsEnv) {
+  console.error(`[install] ENCLAWS_USER_WORKSPACE = ${enclawsWsEnv}`);
+} else {
+  console.error('[install] ENCLAWS_USER_WORKSPACE is not set, falling back to directory detection');
+}
+
 let detected = null;
 
 if (!targetDir) {
@@ -157,6 +171,8 @@ if (!targetDir) {
   }
   targetDir = detected.dir;
 }
+
+console.error(`[install] target directory: ${targetDir} (detected env: ${detected?.env ?? 'custom'})`);
 
 const installed = [];
 const updated   = [];
