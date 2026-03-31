@@ -134,22 +134,73 @@ async function sendFeishuMessage(tenantToken, receiveIdType, receiveId, cardCont
   return res.json();
 }
 
+async function updateFeishuMessage(tenantToken, messageId, cardContent) {
+  const res = await fetch(
+    `https://open.feishu.cn/open-apis/im/v1/messages/${messageId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tenantToken}`,
+      },
+      body: JSON.stringify({ content: JSON.stringify(cardContent) }),
+    },
+  );
+  return res.json();
+}
+
+// Card 1.0 format (no schema/update_multi) — required for PATCH updates to work
 function buildAuthCard(url) {
   return {
-    schema: '2.0',
-    config: { update_multi: true },
+    config: { wide_screen_mode: true },
     header: {
-      title: { tag: 'plain_text', content: '飞书授权' },
+      title: { tag: 'plain_text', content: '🔐 飞书授权' },
       template: 'blue',
     },
-    body: {
-      elements: [
-        { tag: 'markdown', content: '**需要完成飞书授权才能继续操作**' },
-        { tag: 'markdown', content: `[点击这里完成飞书授权](${url})` },
-        { tag: 'markdown', content: '授权完成后将自动继续处理您的请求。' },
-      ],
-    },
+    elements: [
+      { tag: 'markdown', content: '**需要完成飞书授权才能继续操作**' },
+      {
+        tag: 'action',
+        actions: [{
+          tag: 'button',
+          text: { tag: 'plain_text', content: '点击这里完成飞书授权' },
+          type: 'primary',
+          url,
+        }],
+      },
+      { tag: 'markdown', content: '授权完成后将自动继续处理您的请求。' },
+    ],
   };
+}
+
+function buildSuccessCard() {
+  return {
+    config: { wide_screen_mode: true },
+    header: {
+      title: { tag: 'plain_text', content: '✅ 授权成功' },
+      template: 'green',
+    },
+    elements: [
+      { tag: 'markdown', content: '飞书账号授权已完成，正在继续处理您的请求。' },
+    ],
+  };
+}
+
+async function tryUpdateCardToGreen(openId, cfg) {
+  const pending = readPending(openId);
+  if (!pending?.message_id) return;
+  const messageId = pending.message_id;
+  // Remove message_id from pending (keep rest of pending data intact)
+  const { message_id: _removed, ...rest } = pending;
+  if (Object.keys(rest).length > 0) savePending(openId, rest);
+  else deletePending(openId);
+  try {
+    const tenantToken = await getTenantAccessToken(cfg.appId, cfg.appSecret);
+    const result = await updateFeishuMessage(tenantToken, messageId, buildSuccessCard());
+    process.stderr.write(`[auth] card updated to green: ${JSON.stringify(result)}\n`);
+  } catch (err) {
+    process.stderr.write(`[auth] card update failed (non-fatal): ${err.message}\n`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -250,6 +301,25 @@ function saveAuthorizedToken(openId, cfg, data) {
 // Poll loop (shared by --complete --poll and --auth-and-poll)
 // ---------------------------------------------------------------------------
 
+/**
+ * Wraps pollUntilAuthorized in an internal retry loop.
+ * Continues polling across multiple rounds until authorized or device_code expires.
+ * Never returns polling_timeout to the caller (agent).
+ */
+async function pollLoop(openId, cfg, pending, roundMs) {
+  while (true) {
+    const result = await pollUntilAuthorized(openId, cfg, pending, roundMs);
+    if (result.status !== 'polling_timeout') return result;
+    // device_code still valid — re-read pending (may have been updated) and continue
+    const currentPending = readPending(openId);
+    if (!currentPending || (currentPending.created_at + currentPending.expires_in * 1000) <= Date.now()) {
+      return { status: 'expired', message: '授权码已过期' };
+    }
+    process.stderr.write('[auth] polling_timeout, device_code still valid — continuing poll\n');
+    pending = currentPending;
+  }
+}
+
 async function pollUntilAuthorized(openId, cfg, pending, timeoutMs) {
   const deviceDeadline = pending.created_at + pending.expires_in * 1000;
   const pollDeadline = timeoutMs ? Date.now() + timeoutMs : deviceDeadline;
@@ -263,6 +333,7 @@ async function pollUntilAuthorized(openId, cfg, pending, timeoutMs) {
 
     if (!error && json.access_token) {
       const tokenData = saveAuthorizedToken(openId, cfg, json);
+      await tryUpdateCardToGreen(openId, cfg);
       deletePending(openId);
       return {
         status: 'authorized',
@@ -274,9 +345,9 @@ async function pollUntilAuthorized(openId, cfg, pending, timeoutMs) {
 
     if (error === 'authorization_pending') {
       const remaining = deadline - Date.now();
-      if (remaining <= intervalMs) break;
+      if (remaining <= 0) break;
       process.stderr.write(`[poll] waiting... ${Math.floor(remaining / 1000)}s left\n`);
-      await sleep(intervalMs);
+      await sleep(Math.min(intervalMs, remaining));
       continue;
     }
 
@@ -303,10 +374,9 @@ async function pollUntilAuthorized(openId, cfg, pending, timeoutMs) {
     };
   }
 
-  // Distinguish between poll timeout (device_code still valid) and device_code expired
+  // device_code still valid → caller will retry; do NOT delete pending
   if (Date.now() < deviceDeadline) {
-    // Poll timeout but device_code still valid — do NOT delete pending
-    return { status: 'polling_timeout', message: '轮询超时，但授权链接仍有效，请重试' };
+    return { status: 'polling_timeout' };
   }
 
   deletePending(openId);
@@ -357,16 +427,16 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
     const json = await tryExchange(existingPending.device_code, cfg);
     if (!json.error && json.access_token) {
       saveAuthorizedToken(openId, cfg, json);
+      await tryUpdateCardToGreen(openId, cfg);
       deletePending(openId);
       out({ status: 'authorized', message: '授权成功！' });
       return;
     }
     process.stderr.write(`[auth-and-poll] existing pending not yet authorized (${json.error}), will re-use it\n`);
-    // Re-use existing pending if user hasn't authorized yet (avoid generating new device_code)
     if (json.error === 'authorization_pending') {
-      const result = await pollUntilAuthorized(openId, cfg, existingPending, timeoutMs);
+      const result = await pollLoop(openId, cfg, existingPending, timeoutMs);
       out(result);
-      if (result.status !== 'authorized' && result.status !== 'polling_timeout') process.exit(1);
+      if (result.status !== 'authorized') process.exit(1);
       return;
     }
     // Other errors (expired, denied, etc.) — fall through to create new auth
@@ -375,7 +445,8 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
   // Init: get device code and auth URL with merged scopes
   const pending = await initSilent(openId, cfg, mergedScope);
 
-  // Send auth link to user via Feishu IM
+  // Send auth card and save message_id for green card update later
+  let cardSent = false;
   try {
     const tenantToken = await getTenantAccessToken(cfg.appId, cfg.appSecret);
     const card = buildAuthCard(pending.verification_uri);
@@ -385,21 +456,28 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
     if (sendResult.code !== 0) {
       throw new Error(`IM API error: code=${sendResult.code} msg=${sendResult.msg}`);
     }
-    process.stderr.write(`[auth-and-poll] auth card sent via ${receiveIdType}\n`);
+    // Save message_id so we can update card to green on authorization
+    const messageId = sendResult.data?.message_id;
+    if (messageId) {
+      const currentPending = readPending(openId) || {};
+      savePending(openId, { ...currentPending, message_id: messageId });
+    }
+    process.stderr.write(`[auth-and-poll] auth card sent, message_id=${messageId}\n`);
+    cardSent = true;
   } catch (err) {
-    // If card fails, try plain text
     process.stderr.write(`[auth-and-poll] card failed: ${err.message}, trying text...\n`);
+  }
+
+  if (!cardSent) {
+    // Fallback: plain text message
     try {
       const tenantToken = await getTenantAccessToken(cfg.appId, cfg.appSecret);
       const receiveIdType = resolvedChatId ? 'chat_id' : 'open_id';
       const receiveId = resolvedChatId || openId;
-      const textResult = await sendFeishuMessage(tenantToken, receiveIdType, receiveId, null, {
+      await sendFeishuMessage(tenantToken, receiveIdType, receiveId, null, {
         msg_type: 'text',
         content: JSON.stringify({ text: `需要完成飞书授权，请点击链接完成授权：\n${pending.verification_uri}` }),
       });
-      if (textResult.code !== 0) {
-        throw new Error(`IM API error: code=${textResult.code} msg=${textResult.msg}`);
-      }
     } catch (err2) {
       // Last resort: output URL for AI to show manually
       process.stderr.write(`[auth-and-poll] text fallback also failed: ${err2.message}\n`);
@@ -409,15 +487,14 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
         reply: `请点击以下链接完成飞书授权：[点击授权](${pending.verification_uri})`,
         message: '无法通过 IM 发送授权消息，请将 reply 内容直接展示给用户',
       });
+      return;
     }
   }
 
-  // Poll until authorized (short poll, agent will retry if timeout)
-  const result = await pollUntilAuthorized(openId, cfg, pending, timeoutMs);
+  // Internal poll loop — never returns polling_timeout to agent
+  const result = await pollLoop(openId, cfg, pending, timeoutMs);
   out(result);
-  if (result.status !== 'authorized' && result.status !== 'polling_timeout') {
-    process.exit(1);
-  }
+  if (result.status !== 'authorized') process.exit(1);
 }
 
 /**
