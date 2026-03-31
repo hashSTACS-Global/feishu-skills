@@ -120,18 +120,32 @@ async function main() {
   }
 
   if (data.code !== 0) {
-    // Common error: permission not granted
     const msg = data.msg || '';
-    if (data.code === 99991400 || data.code === 99991672 || /permission|scope|not support/i.test(msg)) {
+
+    // Rate limit — distinct from permission errors
+    if (data.code === 99991400) {
+      fail({
+        error: 'rate_limited',
+        code: data.code,
+        message: msg || '请求频率超限，请稍后重试',
+        reply: '⚠️ **请求频率超限**\n\n飞书 API 触发了频率限制，请等待几秒后重试。',
+      });
+    }
+
+    // Permission not granted (tenant-level — requires admin to enable in Feishu console)
+    if (data.code === 99991672 || data.code === 99991679 || /permission|scope|not support/i.test(msg)) {
       const permUrl = `https://open.feishu.cn/app/${cfg.appId}/auth?q=optical_char_recognition:image`;
       fail({
         error: 'permission_required',
         code: data.code,
         message: msg,
+        required_scopes: ['optical_char_recognition:image'],
+        auth_type: 'tenant',
         permission_url: permUrl,
-        reply: `⚠️ **飞书 OCR 权限未开通（需要管理员操作）**\n\n**图片内容无法识别，禁止使用其他方式替代识别，禁止猜测或编造图片内容。**\n\n此权限为应用级权限，**普通用户无法自行开通，必须由飞书应用管理员操作**。\n\n需要开通的权限：\`optical_char_recognition:image\`\n\n请联系管理员按以下步骤操作：\n1. 打开 [飞书开放平台-权限管理](${permUrl})\n2. 切换到「**应用身份权限 tenant_access_token**」tab\n3. 搜索并开通相关权限`,
+        reply: `⚠️ **飞书 OCR 权限未开通（需要管理员操作）**\n\n此权限为应用级权限（tenant_access_token），无法通过用户授权获取。\n\n请管理员在 [飞书开放平台-权限管理](${permUrl}) 中开通 \`optical_char_recognition:image\` 权限。`,
       });
     }
+
     fail({ error: 'api_error', code: data.code, message: msg });
   }
 

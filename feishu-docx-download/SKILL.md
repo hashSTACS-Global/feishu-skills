@@ -48,13 +48,17 @@ node ./download-doc.js --open-id "SENDER_OPEN_ID" --file-token "FILE_TOKEN" --ty
 
 文件默认下载到当前用户的工作空间目录。脚本输出 JSON，其中 `file_path` 为本地路径，`file_type` 为扩展名。
 
-## 需要授权时
+## 授权
 
-若返回 `{"error":"auth_required"}`，**不要询问用户是否授权，直接立即执行以下命令发送授权链接：**
+若返回 `{"error":"auth_required"}` 或 `{"error":"permission_required"}`，**不要询问用户是否授权，直接立即执行以下命令发送授权链接：**
+
+- 若返回 JSON 中包含 `required_scopes` 字段，将其数组值用空格拼接后传入 `--scope` 参数：
 
 ```bash
-node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id "CHAT_ID" --timeout 60
+node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id "CHAT_ID" --timeout 60 --scope "<required_scopes 用空格拼接>"
 ```
+
+- 若返回中不包含 `required_scopes`，则不加 `--scope` 参数。
 
 - `{"status":"authorized"}` → 重新执行下载命令
 - `{"status":"polling_timeout"}` → **立即重新执行此 auth 命令**（不会重复发卡片）

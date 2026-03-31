@@ -31,18 +31,20 @@ node ./create-doc.js --open-id "SENDER_OPEN_ID" --title "文档标题" --markdow
 
 ## 授权
 
-若返回 `{"error":"auth_required"}`，**不要询问用户是否授权，直接立即执行以下命令发送授权链接：**
+若返回 `{"error":"auth_required"}` 或 `{"error":"permission_required"}`，**不要询问用户是否授权，直接立即执行以下命令发送授权链接：**
+
+- 若返回 JSON 中包含 `required_scopes` 字段，将其数组值用空格拼接后传入 `--scope` 参数：
 
 ```bash
-node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id "CHAT_ID" --timeout 60
+node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id "CHAT_ID" --timeout 60 --scope "<required_scopes 用空格拼接>"
 ```
 
-- `{"status":"authorized"}` → 重新执行 create-doc.js
+- 若返回中不包含 `required_scopes`，则不加 `--scope` 参数（使用默认权限）。
+
+- `{"status":"authorized"}` → 重新执行原始命令
 - `{"status":"polling_timeout"}` → **立即重新执行此 auth 命令**（不会重复发卡片）
 - `CHAT_ID` 不知道可省略
 
-## 权限不足时
+## 权限不足时（应用级）
 
-若返回 `{"error":"permission_required"}`，说明飞书应用未开通所需权限。**必须直接将返回 JSON 中的 `reply` 字段内容原样发送给用户**，其中已包含权限管理页面的超链接和操作步骤。
-
-**注意：不要自行组织文案，不要省略链接，直接用 `reply` 字段内容回复用户。**
+若返回中包含 `"auth_type":"tenant"`，说明需要管理员在飞书开放平台开通应用权限，**必须将 `reply` 字段内容原样发送给用户**。

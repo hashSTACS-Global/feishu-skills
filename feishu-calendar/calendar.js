@@ -274,13 +274,15 @@ async function main() {
   } catch (err) {
     if (err.message?.includes('99991663')) die({ error: 'auth_required', message: 'token 已失效，请重新授权' });
     const msg = err.message || '';
-    if (msg.includes('99991400') || msg.includes('99991672') || /permission|scope|not support|tenant/i.test(msg)) {
-      const permUrl = `https://open.feishu.cn/app/${cfg.appId}/auth?q=calendar`;
+    if (msg.includes('99991400')) {
+      die({ error: 'rate_limited', message: msg || '请求频率超限，请稍后重试' });
+    }
+    if (msg.includes('99991672') || msg.includes('99991679') || /permission|scope|not support|tenant/i.test(msg)) {
       die({
         error: 'permission_required',
         message: msg,
-        permission_url: permUrl,
-        reply: `⚠️ **飞书应用权限不足（需要管理员操作）**\n\n需要开通的权限：\`calendar\`\n\n请联系管理员操作：\n1. 打开 [飞书开放平台-权限管理](${permUrl})\n2. 搜索并开通相关权限`,
+        required_scopes: ['calendar:calendar', 'calendar:calendar:read', 'calendar:calendar.event:create', 'calendar:calendar.event:read', 'calendar:calendar.event:update', 'calendar:calendar.event:delete', 'calendar:calendar.free_busy:read'],
+        reply: '⚠️ **权限不足，需要重新授权以获取所需权限。**',
       });
     }
     die({ error: 'api_error', message: err.message });

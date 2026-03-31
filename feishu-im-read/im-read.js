@@ -126,7 +126,12 @@ async function apiCall(method, urlPath, token, body, query) {
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  return res.json();
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`API returned non-JSON (HTTP ${res.status}): ${text.substring(0, 200)}`);
+  }
 }
 
 /** Resolve open_id to P2P chat_id */
@@ -228,7 +233,7 @@ async function searchMessages(args, token) {
   };
   if (args.pageToken) query.page_token = args.pageToken;
 
-  const data = await apiCall('POST', '/search/v1/message', token, searchBody, query);
+  const data = await apiCall('POST', '/search/v2/message', token, searchBody, query);
   if (data.code !== 0) throw new Error(`Search messages failed: code=${data.code} msg=${data.msg}`);
 
   const messages = (data.data?.items || []).map(formatMessage);
@@ -277,13 +282,15 @@ async function main() {
     if (msg.includes('99991663')) {
       die({ error: 'auth_required', message: '飞书 token 已失效，请重新授权' });
     }
-    if (msg.includes('99991400') || msg.includes('99991672') || /permission|scope|not support|tenant/i.test(msg)) {
-      const permUrl = `https://open.feishu.cn/app/${cfg.appId}/auth?q=im:message`;
+    if (msg.includes('99991400')) {
+      die({ error: 'rate_limited', message: msg || '请求频率超限，请稍后重试' });
+    }
+    if (msg.includes('99991672') || msg.includes('99991679') || /permission|scope|not support|tenant/i.test(msg)) {
       die({
         error: 'permission_required',
         message: msg,
-        permission_url: permUrl,
-        reply: `⚠️ **飞书应用权限不足（需要管理员操作）**\n\n需要开通的权限：\`im:message\`\n\n请联系管理员操作：\n1. 打开 [飞书开放平台-权限管理](${permUrl})\n2. 搜索并开通相关权限`,
+        required_scopes: ['im:message', 'im:message:readonly', 'im:chat:read', 'search:message'],
+        reply: '⚠️ **权限不足，需要重新授权以获取所需权限。**',
       });
     }
     die({ error: 'api_error', message: msg });

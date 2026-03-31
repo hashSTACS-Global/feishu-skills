@@ -30,7 +30,7 @@ const {
 
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const result = { mode: null, openId: null, poll: false, chatId: null, timeout: null };
+  const result = { mode: null, openId: null, poll: false, chatId: null, timeout: null, extraScopes: null };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
       case '--auth-and-poll': result.mode = 'auth-and-poll'; break;
@@ -42,6 +42,7 @@ function parseArgs() {
       case '--open-id':       result.openId = argv[++i];     break;
       case '--chat-id':       result.chatId = argv[++i];     break;
       case '--timeout':       result.timeout = parseInt(argv[++i], 10); break;
+      case '--scope':         result.extraScopes = argv[++i]; break;
     }
   }
   return result;
@@ -68,12 +69,36 @@ function basicAuth(appId, appSecret) {
   return 'Basic ' + Buffer.from(`${appId}:${appSecret}`).toString('base64');
 }
 
-const SCOPES = [
+/** Minimal base scopes — always requested regardless of --scope argument. */
+const BASE_SCOPES = [
   'offline_access',
-  'drive:drive',
-  'docs:doc',
-  'wiki:wiki:readonly',
-].join(' ');
+  'contact:user.base:readonly',
+  'contact:contact.base:readonly',
+];
+
+/**
+ * Merge base scopes + extra scopes from --scope arg + existing token scopes.
+ * Deduplicates and returns a single space-separated string.
+ */
+function buildMergedScopes(extraScopesStr, existingTokenScope) {
+  const set = new Set(BASE_SCOPES);
+  if (existingTokenScope) {
+    for (const s of existingTokenScope.split(/\s+/)) if (s) set.add(s);
+  }
+  if (extraScopesStr) {
+    for (const s of extraScopesStr.split(/[\s,]+/)) if (s) set.add(s);
+  }
+  // If no extra scopes requested at all (first-time auth without --scope),
+  // include a sensible default set for docs/drive/wiki so basic skills work.
+  if (!extraScopesStr && !existingTokenScope) {
+    for (const s of [
+      'docs:doc', 'docx:document', 'docx:document:create', 'docx:document:readonly',
+      'drive:drive', 'drive:file:download', 'docs:document.media:download',
+      'wiki:wiki:readonly', 'wiki:node:read', 'space:document:retrieve',
+    ]) set.add(s);
+  }
+  return [...set].join(' ');
+}
 
 async function getTenantAccessToken(appId, appSecret) {
   const res = await fetch(
@@ -131,8 +156,9 @@ function buildAuthCard(url) {
 // Step 1: init
 // ---------------------------------------------------------------------------
 
-async function init(openId, cfg) {
-  const body = new URLSearchParams({ client_id: cfg.appId, scope: SCOPES });
+async function init(openId, cfg, scopeStr) {
+  const mergedScope = scopeStr || buildMergedScopes(null, null);
+  const body = new URLSearchParams({ client_id: cfg.appId, scope: mergedScope });
   const res = await fetch(
     'https://accounts.feishu.cn/oauth/v1/device_authorization',
     {
@@ -292,17 +318,37 @@ async function pollUntilAuthorized(openId, cfg, pending, timeoutMs) {
 // Sends auth link to user via IM, then polls until authorized.
 // ---------------------------------------------------------------------------
 
-async function authAndPoll(openId, chatId, cfg, timeoutMs) {
+async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
   // Resolve chatId with fallback: CLI arg → env var → null (private message)
   const resolvedChatId = chatId || process.env.ENCLAWS_CHAT_ID || null;
 
-  // Check if already authorized
+  // Check if already authorized AND has all requested scopes
   const { getValidToken } = require(path.join(__dirname, './token-utils.js'));
   const existingToken = await getValidToken(openId, cfg.appId, cfg.appSecret);
   if (existingToken) {
-    out({ status: 'authorized', message: '用户已授权，无需重新授权' });
-    return;
+    // If --scope was provided, check if current token already covers all requested scopes
+    if (extraScopesStr) {
+      const tokenObj = readToken(openId, cfg.appId);
+      const currentScopes = new Set((tokenObj?.scope || '').split(/\s+/).filter(Boolean));
+      const requested = extraScopesStr.split(/[\s,]+/).filter(Boolean);
+      const missing = requested.filter(s => !currentScopes.has(s));
+      if (missing.length > 0) {
+        process.stderr.write(`[auth-and-poll] token missing scopes: ${missing.join(', ')} — re-authorizing\n`);
+        // Fall through to re-authorize with merged scopes
+        deleteToken(openId, cfg.appId);
+      } else {
+        out({ status: 'authorized', message: '用户已授权，且权限充足' });
+        return;
+      }
+    } else {
+      out({ status: 'authorized', message: '用户已授权，无需重新授权' });
+      return;
+    }
   }
+
+  // Build merged scope string: base + extra + existing token scopes (for upgrade)
+  const tokenObj = readToken(openId, cfg.appId);
+  const mergedScope = buildMergedScopes(extraScopesStr, tokenObj?.scope);
 
   // Check if there's a pending auth from a previous (possibly killed) run
   const existingPending = readPending(openId);
@@ -326,8 +372,8 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs) {
     // Other errors (expired, denied, etc.) — fall through to create new auth
   }
 
-  // Init: get device code and auth URL
-  const pending = await initSilent(openId, cfg);
+  // Init: get device code and auth URL with merged scopes
+  const pending = await initSilent(openId, cfg, mergedScope);
 
   // Send auth link to user via Feishu IM
   try {
@@ -377,8 +423,9 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs) {
 /**
  * Like init() but returns pending data without outputting JSON.
  */
-async function initSilent(openId, cfg) {
-  const body = new URLSearchParams({ client_id: cfg.appId, scope: SCOPES });
+async function initSilent(openId, cfg, scopeStr) {
+  const mergedScope = scopeStr || buildMergedScopes(null, null);
+  const body = new URLSearchParams({ client_id: cfg.appId, scope: mergedScope });
   const res = await fetch(
     'https://accounts.feishu.cn/oauth/v1/device_authorization',
     {
@@ -525,8 +572,8 @@ async function main() {
 
   try {
     switch (args.mode) {
-      case 'auth-and-poll': await authAndPoll(args.openId, args.chatId, cfg, (args.timeout ?? 60) * 1000); break;
-      case 'init':          await init(args.openId, cfg);                     break;
+      case 'auth-and-poll': await authAndPoll(args.openId, args.chatId, cfg, (args.timeout ?? 60) * 1000, args.extraScopes); break;
+      case 'init':          await init(args.openId, cfg, args.extraScopes ? buildMergedScopes(args.extraScopes, null) : undefined); break;
       case 'complete':      await complete(args.openId, cfg, args.poll);      break;
       case 'revoke':        await revoke(args.openId, cfg);                   break;
       case 'status':        await status(args.openId, cfg);                   break;
