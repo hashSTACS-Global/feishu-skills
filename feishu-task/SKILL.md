@@ -13,16 +13,20 @@ inline: true
 ## 任务
 
 ```bash
-node ./task.js --open-id "ou_xxx" --action create_task --summary "标题" --due "ISO8601" --members "ou_yyy"
+node ./task.js --open-id "ou_xxx" --action create_task --summary "标题" --due "ISO8601" --members "ou_yyy" --followers "ou_zzz"
 node ./task.js --open-id "ou_xxx" --action list_tasks
 node ./task.js --open-id "ou_xxx" --action get_task --task-id "ID"
 node ./task.js --open-id "ou_xxx" --action update_task --task-id "ID" --summary "新标题"
 node ./task.js --open-id "ou_xxx" --action update_task --task-id "ID" --completed true
 node ./task.js --open-id "ou_xxx" --action add_task_members --task-id "ID" --members "ou_yyy"
 node ./task.js --open-id "ou_xxx" --action remove_task_members --task-id "ID" --members "ou_yyy"
+node ./task.js --open-id "ou_xxx" --action add_followers --task-id "ID" --followers "ou_yyy,ou_zzz"
+node ./task.js --open-id "ou_xxx" --action remove_followers --task-id "ID" --followers "ou_yyy"
 ```
 
 可选：`--description` `--tasklist-id`
+
+`--members` 为执行人（assignee），`--followers` 为关注人（follower），创建任务时可同时指定。
 
 ## 任务清单
 
