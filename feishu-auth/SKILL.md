@@ -28,8 +28,8 @@ node "./auth.js" --auth-and-poll --open-id "OPEN_ID" --chat-id "CHAT_ID" --timeo
 - `--timeout`：轮询等待秒数（默认 60）
 
 **返回值处理：**
-- `{"status":"authorized"}` → 授权成功，继续后续操作
-- `{"status":"polling_timeout"}` → 用户尚未完成授权，**立即重新执行同一命令**（会自动复用授权链接，不会重复发送卡片）
+- `{"status":"authorized"}` → 授权成功，**立即继续执行原始任务**，不要输出任何文字
+- `{"status":"expired"}` → 授权链接已过期，告知用户重试
 - 其他错误 → 停止并告知用户
 
 执行此命令前后不要输出额外文字，脚本已自动通知用户。
