@@ -25,6 +25,17 @@ const { getConfig, getValidToken } = require(
   path.join(__dirname, '../feishu-auth/token-utils.js'),
 );
 
+async function getTenantToken(appId, appSecret) {
+  const res = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
+  });
+  const data = await res.json();
+  if (data.code !== 0) throw new Error(`tenant token error: code=${data.code} msg=${data.msg}`);
+  return data.tenant_access_token;
+}
+
 function parseArgs() {
   const argv = process.argv.slice(2);
   const r = {
@@ -85,6 +96,17 @@ async function apiCall(method, urlPath, token, body, query) {
 
 function toTimestamp(dateStr) {
   return String(Math.floor(new Date(dateStr).getTime() / 1000));
+}
+
+function toRFC3339(dateStr, timeZone) {
+  const d = new Date(dateStr);
+  const off = timeZone === 'Asia/Shanghai' ? '+08:00' : 'Z';
+  if (off === 'Z') return d.toISOString();
+  const utc = d.getTime();
+  const offsetMs = 8 * 60 * 60 * 1000;
+  const local = new Date(utc + offsetMs);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}:${pad(local.getUTCSeconds())}${off}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -221,14 +243,21 @@ async function removeAttendees(args, token) {
 async function checkFreebusy(args, token) {
   if (!args.userIds) die({ error: 'missing_param', message: '--user-ids 必填' });
   if (!args.startTime || !args.endTime) die({ error: 'missing_param', message: '--start-time 和 --end-time 必填' });
-  const body = {
-    time_min: toTimestamp(args.startTime),
-    time_max: toTimestamp(args.endTime),
-    user_ids: args.userIds.split(',').map(id => ({ user_id: id.trim(), type: 'user' })),
-  };
-  const data = await apiCall('POST', '/calendar/v4/freebusy/list', token, body, { user_id_type: 'open_id' });
-  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
-  out({ freebusy_list: data.data?.freebusy_list || [] });
+  const ids = args.userIds.split(',').map(id => id.trim()).filter(Boolean);
+  const allResults = [];
+  for (const uid of ids) {
+    const body = {
+      time_min: toRFC3339(args.startTime, args.timeZone),
+      time_max: toRFC3339(args.endTime, args.timeZone),
+      user_id: uid,
+    };
+    const data = await apiCall('POST', '/calendar/v4/freebusy/list', token, body, { user_id_type: 'open_id' });
+    if (data.code !== 0) {
+      die({ error: 'api_error', debug_request: body, debug_response: data, message: `code=${data.code} msg=${data.msg}` });
+    }
+    allResults.push({ user_id: uid, freebusy_list: data.data?.freebusy_list || [] });
+  }
+  out({ results: allResults });
 }
 
 // ---------------------------------------------------------------------------
@@ -262,11 +291,17 @@ async function main() {
   try { cfg = getConfig(__dirname); } catch (err) { die({ error: 'config_error', message: err.message }); }
 
   let accessToken;
-  try { accessToken = await getValidToken(args.openId, cfg.appId, cfg.appSecret); } catch (err) {
-    die({ error: 'token_error', message: err.message });
-  }
-  if (!accessToken) {
-    die({ error: 'auth_required', message: `用户未授权。open_id: ${args.openId}` });
+  if (args.action === 'check_freebusy') {
+    try { accessToken = await getTenantToken(cfg.appId, cfg.appSecret); } catch (err) {
+      die({ error: 'token_error', message: err.message });
+    }
+  } else {
+    try { accessToken = await getValidToken(args.openId, cfg.appId, cfg.appSecret); } catch (err) {
+      die({ error: 'token_error', message: err.message });
+    }
+    if (!accessToken) {
+      die({ error: 'auth_required', message: `用户未授权。open_id: ${args.openId}` });
+    }
   }
 
   try {
