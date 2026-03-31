@@ -32,8 +32,9 @@ function parseArgs() {
     summary: null, description: null, startTime: null, endTime: null,
     timeZone: 'Asia/Shanghai', location: null, attendees: null,
     query: null, pageSize: 50, pageToken: null,
-    userIds: null, startMin: null, startMax: null,
-    isAllDay: false, recurrence: null, reminder: null,
+    userIds: null, names: null, chatId: null,
+    startMin: null, startMax: null,
+    isAllDay: false, recurrence: null, repeat: null, reminder: null,
     needAttendee: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -57,9 +58,72 @@ function parseArgs() {
       case '--start-max':    r.startMax     = argv[++i]; break;
       case '--all-day':      r.isAllDay     = true; break;
       case '--need-attendee': r.needAttendee = true; break;
+      case '--repeat':       r.repeat       = argv[++i]; break;
+      case '--recurrence':   r.recurrence   = argv[++i]; break;
+      case '--names':        r.names        = argv[++i]; break;
+      case '--chat-id':      r.chatId       = argv[++i]; break;
     }
   }
   return r;
+}
+
+const REPEAT_RRULE = {
+  daily:    'FREQ=DAILY',
+  weekly:   'FREQ=WEEKLY',
+  monthly:  'FREQ=MONTHLY',
+  workdays: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
+};
+
+function resolveRecurrence(args) {
+  if (args.recurrence) return args.recurrence;
+  if (args.repeat) return REPEAT_RRULE[args.repeat] ?? null;
+  return null;
+}
+
+async function getTenantToken(cfg) {
+  const res = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ app_id: cfg.appId, app_secret: cfg.appSecret }),
+  });
+  const json = await res.json();
+  if (json.code !== 0) throw new Error(`获取 tenant_access_token 失败: ${json.msg}`);
+  return json.tenant_access_token;
+}
+
+/**
+ * Search chat members by name (substring, case-insensitive).
+ * Returns array of { open_id, name }.
+ */
+async function searchChatMembersByName(chatId, names, appToken) {
+  // Fetch all members (paginate)
+  const allMembers = [];
+  let pageToken = null;
+  do {
+    const params = { member_id_type: 'open_id' };
+    if (pageToken) params.page_token = pageToken;
+    let url = `https://open.feishu.cn/open-apis/im/v1/chats/${chatId}/members`;
+    const qs = new URLSearchParams(params).toString();
+    if (qs) url += '?' + qs;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${appToken}` } });
+    const json = await res.json();
+    if (json.code !== 0) throw new Error(`获取群成员失败: code=${json.code} msg=${json.msg}`);
+    for (const m of json.data?.items ?? []) allMembers.push(m);
+    pageToken = json.data?.has_more ? json.data.page_token : null;
+  } while (pageToken);
+
+  // Match each name
+  const result = [];
+  for (const name of names) {
+    const q = name.toLowerCase();
+    const matched = allMembers.filter(m => (m.name || '').toLowerCase().includes(q));
+    if (matched.length === 0) {
+      result.push({ name, open_id: null, error: `未在群中找到"${name}"` });
+    } else {
+      result.push({ name, open_id: matched[0].member_id, display_name: matched[0].name });
+    }
+  }
+  return result;
 }
 
 function out(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
@@ -85,6 +149,35 @@ async function apiCall(method, urlPath, token, body, query) {
 
 function toTimestamp(dateStr) {
   return String(Math.floor(new Date(dateStr).getTime() / 1000));
+}
+
+/**
+ * Convert a date string to RFC3339 format with +08:00 timezone.
+ * Accepts ISO8601 with timezone, or "YYYY-MM-DD HH:mm:ss" (treated as +08:00).
+ */
+function toRFC3339(input) {
+  const trimmed = input.trim();
+  // Already has timezone indicator
+  if (/[Zz]$|[+-]\d{2}:\d{2}$/.test(trimmed)) {
+    const d = new Date(trimmed);
+    if (isNaN(d.getTime())) throw new Error(`无效时间: ${input}`);
+    return trimmed;
+  }
+  // No timezone → treat as Asia/Shanghai +08:00
+  // Accept "YYYY-MM-DD HH:mm:ss" or "YYYY-MM-DDTHH:mm:ss"
+  const m = trimmed.replace('T', ' ').match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+  if (m) {
+    const [, y, mo, d, h, mi, s] = m;
+    return `${y}-${mo}-${d}T${h}:${mi}:${s}+08:00`;
+  }
+  // Fallback: parse and format
+  const d = new Date(trimmed);
+  if (isNaN(d.getTime())) throw new Error(`无效时间: ${input}`);
+  // Format as local +08:00
+  const offset = 8 * 60;
+  const local = new Date(d.getTime() + offset * 60000);
+  const iso = local.toISOString().replace('Z', '+08:00');
+  return iso;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +209,11 @@ async function createEvent(args, token) {
     end_time: args.isAllDay
       ? { date: args.endTime }
       : { timestamp: toTimestamp(args.endTime), timezone: args.timeZone },
+    vchat: { vc_type: 'vc' },
+    reminders: [{ minutes: 15 }],
   };
+  const rrule = resolveRecurrence(args);
+  if (rrule) body.recurrence = rrule;
   if (args.location) body.location = { name: args.location };
   if (args.attendees) {
     body.attendees = args.attendees.split(',').map(id => ({
@@ -127,7 +224,24 @@ async function createEvent(args, token) {
   if (args.needAttendee) query.need_attendee = 'true';
   const data = await apiCall('POST', `/calendar/v4/calendars/${calId}/events`, token, body, query);
   if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
-  out({ event: data.data?.event, reply: `日程「${args.summary}」已创建` });
+
+  const event = data.data?.event;
+  const eventId = event?.event_id;
+
+  // GET event to retrieve meeting URL (vchat.meeting_url may not be in create response)
+  let meetingUrl = event?.vchat?.meeting_url;
+  if (!meetingUrl && eventId) {
+    const getData = await apiCall('GET', `/calendar/v4/calendars/${calId}/events/${eventId}`, token, null, { user_id_type: 'open_id' });
+    if (getData.code === 0) {
+      meetingUrl = getData.data?.event?.vchat?.meeting_url;
+    }
+  }
+
+  out({
+    event,
+    meeting_url: meetingUrl,
+    reply: `日程「${args.summary}」已创建${rrule ? `（重复：${args.repeat || args.recurrence}）` : ''}${meetingUrl ? `，会议链接：${meetingUrl}` : ''}`,
+  });
 }
 
 async function listEvents(args, token) {
@@ -218,17 +332,55 @@ async function removeAttendees(args, token) {
   out({ success: true, reply: '参与者已移除' });
 }
 
-async function checkFreebusy(args, token) {
-  if (!args.userIds) die({ error: 'missing_param', message: '--user-ids 必填' });
+async function checkFreebusy(args, token, cfg) {
+  if (!args.userIds && !args.names) die({ error: 'missing_param', message: '--user-ids 或 --names 必填' });
   if (!args.startTime || !args.endTime) die({ error: 'missing_param', message: '--start-time 和 --end-time 必填' });
-  const body = {
-    time_min: toTimestamp(args.startTime),
-    time_max: toTimestamp(args.endTime),
-    user_ids: args.userIds.split(',').map(id => ({ user_id: id.trim(), type: 'user' })),
-  };
-  const data = await apiCall('POST', '/calendar/v4/freebusy/list', token, body, { user_id_type: 'open_id' });
-  if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
-  out({ freebusy_list: data.data?.freebusy_list || [] });
+
+  let userIds = args.userIds ? args.userIds.split(',').map(id => id.trim()) : [];
+  const nameResolutions = [];
+
+  // Resolve names → open_ids via chat members
+  if (args.names) {
+    if (!args.chatId) die({ error: 'missing_param', message: '按姓名查忙闲需要 --chat-id' });
+    const appToken = await getTenantToken(cfg);
+    const names = args.names.split(',').map(n => n.trim());
+    const resolved = await searchChatMembersByName(args.chatId, names, appToken);
+    for (const r of resolved) {
+      nameResolutions.push(r);
+      if (r.open_id) userIds.push(r.open_id);
+    }
+    const notFound = nameResolutions.filter(r => !r.open_id);
+    if (notFound.length > 0 && userIds.length === 0) {
+      die({ error: 'user_not_found', message: notFound.map(r => r.error).join('；') });
+    }
+  }
+
+  const timeMin = toRFC3339(args.startTime);
+  const timeMax = toRFC3339(args.endTime);
+  const idToName = Object.fromEntries(nameResolutions.filter(r => r.open_id).map(r => [r.open_id, r.display_name || r.name]));
+
+  // freebusy/list is one user per request — query in parallel
+  const results = await Promise.all(userIds.map(async uid => {
+    const body = {
+      time_min: timeMin,
+      time_max: timeMax,
+      user_id: uid,
+      include_external_calendar: true,
+      only_busy: true,
+    };
+    const data = await apiCall('POST', '/calendar/v4/freebusy/list', token, body, { user_id_type: 'open_id' });
+    if (data.code !== 0) throw new Error(`查询 ${uid} 忙闲失败: code=${data.code} msg=${data.msg}`);
+    const busyPeriods = data.data?.freebusy_list || [];
+    return {
+      user_id: uid,
+      ...(idToName[uid] && { display_name: idToName[uid] }),
+      busy_periods: busyPeriods,
+      is_free: busyPeriods.length === 0,
+    };
+  }));
+
+  const warnings = nameResolutions.filter(r => !r.open_id).map(r => r.error);
+  out({ freebusy: results, ...(warnings.length > 0 && { warnings }) });
 }
 
 // ---------------------------------------------------------------------------
@@ -270,7 +422,7 @@ async function main() {
   }
 
   try {
-    await handler(args, accessToken);
+    await handler(args, accessToken, cfg);
   } catch (err) {
     if (err.message?.includes('99991663')) die({ error: 'auth_required', message: 'token 已失效，请重新授权' });
     const msg = err.message || '';
