@@ -21,6 +21,10 @@ node ./calendar.js --open-id "ou_xxx" --action get_primary
 
 ```bash
 node ./calendar.js --open-id "ou_xxx" --action create_event --summary "标题" --start-time "ISO8601" --end-time "ISO8601" --attendees "ou_yyy,ou_zzz"
+# 重复会议（早会/周会/月会等）
+node ./calendar.js --open-id "ou_xxx" --action create_event --summary "早会" --start-time "ISO8601" --end-time "ISO8601" --repeat daily
+node ./calendar.js --open-id "ou_xxx" --action create_event --summary "周会" --start-time "ISO8601" --end-time "ISO8601" --repeat weekly
+node ./calendar.js --open-id "ou_xxx" --action create_event --summary "月会" --start-time "ISO8601" --end-time "ISO8601" --repeat monthly
 node ./calendar.js --open-id "ou_xxx" --action list_events --start-min "ISO8601" --start-max "ISO8601"
 node ./calendar.js --open-id "ou_xxx" --action get_event --event-id "ID" --need-attendee
 node ./calendar.js --open-id "ou_xxx" --action update_event --event-id "ID" --summary "新标题"
@@ -29,6 +33,10 @@ node ./calendar.js --open-id "ou_xxx" --action search_events --query "关键词"
 ```
 
 可选：`--description` `--location` `--all-day`（全天时时间用日期格式）
+
+`--repeat` 可选值：`daily`（每天）、`weekly`（每周）、`monthly`（每月）、`workdays`（工作日）
+
+也可用 `--recurrence` 传原始 RRULE，如 `FREQ=WEEKLY;BYDAY=MO,WE,FR`
 
 ## 参与者
 
@@ -41,8 +49,14 @@ node ./calendar.js --open-id "ou_xxx" --action remove_attendees --event-id "ID" 
 ## 忙闲
 
 ```bash
-node ./calendar.js --open-id "ou_xxx" --action check_freebusy --user-ids "ou_yyy" --start-time "ISO8601" --end-time "ISO8601"
+# 按 open_id 查询
+node ./calendar.js --open-id "ou_xxx" --action check_freebusy --user-ids "ou_yyy,ou_zzz" --start-time "ISO8601" --end-time "ISO8601"
+
+# 按姓名查询（从当前群成员中匹配，需要 --chat-id）
+node ./calendar.js --open-id "ou_xxx" --action check_freebusy --names "张三,李四" --chat-id "oc_xxx" --start-time "ISO8601" --end-time "ISO8601"
 ```
+
+`--names` 和 `--user-ids` 可混用。按名字查询时必须提供 `--chat-id`（当前群的 chat_id）。
 
 ## 必须确认的参数
 
