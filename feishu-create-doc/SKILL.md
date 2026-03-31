@@ -48,3 +48,27 @@ node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id
 ## 权限不足时（应用级）
 
 若返回中包含 `"auth_type":"tenant"`，说明需要管理员在飞书开放平台开通应用权限，**必须将 `reply` 字段内容原样发送给用户**。
+
+## 与其他技能的编排建议
+
+当用户仅给出「文件夹名称」而未提供 `folder_token` 时，建议按以下顺序编排多个技能：
+
+1. **优先通过搜索确认文件夹是否已存在**
+   - 调用 `feishu-search-doc`（假设已安装）按名称搜索相关文档 / 文件夹。
+   - 若搜索结果明确且唯一，可直接从搜索结果中拿到目标文件夹或父目录信息。
+
+2. **搜索结果不确定时，使用云盘浏览确认**
+   - 当搜索结果较多或用户无法确认时，调用 `feishu-drive`：
+     - `node ./drive.js --open-id "SENDER_OPEN_ID" --action list --folder-token "父目录TOKEN"`
+   - 引导用户在列出的 `items` 中确认目标文件夹，或告知确实不存在。
+
+3. **文件夹不存在时自动创建**
+   - 当确认文件夹不存在时，调用 `feishu-drive` 创建：
+     - `node ./drive.js --open-id "SENDER_OPEN_ID" --action create_folder --name "文件夹名" --folder-token "父目录TOKEN"`
+   - 从返回结果中读取新建文件夹的 `folder_token`。
+
+4. **拿到 `folder_token` 后创建文档**
+   - 使用本技能创建文档，并将 `folder_token` 透传给脚本：
+     - `node ./create-doc.js --open-id "SENDER_OPEN_ID" --title "文档标题" --markdown "Markdown内容" --folder-token "TOKEN"`
+
+通过上述编排，`feishu-search-doc` 负责查找，`feishu-drive` 负责浏览与创建文件夹，`feishu-create-doc` 专注于创建文档，三个技能职责单一且可复用。

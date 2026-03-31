@@ -27,6 +27,7 @@ const SKILLS = [
   'feishu-task',
   'feishu-bitable',
   'feishu-docx-download',
+  'feishu-drive',
   'feishu-image-ocr',
 ];
 
