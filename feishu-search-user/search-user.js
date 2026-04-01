@@ -1,19 +1,23 @@
 'use strict';
 /**
- * feishu-search-user: Search Feishu users by keyword.
+ * feishu-search-user: Search or get Feishu user info.
+ *
+ * Actions:
+ *   search   (default) Search users by keyword (name / phone / email)
+ *   get_me   Get current user's own profile
+ *   get      Get a specific user's profile by user_id
  *
  * Usage:
- *   node search-user.js --open-id <open_id> --query <keyword> [options]
- *
- * Options:
- *   --query        Search keyword (matches name, phone, email) (required)
- *   --page-size    Results per page, 1-200, default 20
- *   --page-token   Pagination token for next page
+ *   node search-user.js --open-id <open_id> --query <keyword> [--page-size N] [--page-token TOKEN]
+ *   node search-user.js --open-id <open_id> --action get_me
+ *   node search-user.js --open-id <open_id> --action get --user-id <ou_xxx> [--user-id-type open_id|union_id|user_id]
  *
  * Output: single-line JSON
- *   Success: {"users":[...],"has_more":false,"page_token":null,"reply":"..."}
- *   Auth:    {"error":"auth_required","message":"..."}
- *   Error:   {"error":"api_error","message":"..."}
+ *   search  : {"users":[...],"has_more":false,"page_token":null,"reply":"..."}
+ *   get_me  : {"user":{...},"reply":"..."}
+ *   get     : {"user":{...},"reply":"..."}
+ *   Auth    : {"error":"auth_required","message":"..."}
+ *   Error   : {"error":"api_error","message":"..."}
  */
 
 const path = require('path');
@@ -27,13 +31,20 @@ const { getConfig, getValidToken } = require(
 
 function parseArgs() {
   const argv = process.argv.slice(2);
-  const r = { openId: null, query: null, pageSize: 20, pageToken: null };
+  const r = {
+    openId: null, action: 'search',
+    query: null, pageSize: 20, pageToken: null,
+    userId: null, userIdType: 'open_id',
+  };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
-      case '--open-id':    r.openId    = argv[++i]; break;
-      case '--query':      r.query     = argv[++i]; break;
-      case '--page-size':  r.pageSize  = parseInt(argv[++i], 10); break;
-      case '--page-token': r.pageToken = argv[++i]; break;
+      case '--open-id':       r.openId     = argv[++i]; break;
+      case '--action':        r.action     = argv[++i]; break;
+      case '--query':         r.query      = argv[++i]; break;
+      case '--page-size':     r.pageSize   = parseInt(argv[++i], 10); break;
+      case '--page-token':    r.pageToken  = argv[++i]; break;
+      case '--user-id':       r.userId     = argv[++i]; break;
+      case '--user-id-type':  r.userIdType = argv[++i]; break;
     }
   }
   return r;
@@ -73,8 +84,59 @@ async function apiCall(method, urlPath, token, body, query) {
 }
 
 // ---------------------------------------------------------------------------
-// Search
+// Actions
 // ---------------------------------------------------------------------------
+
+async function getMe(token) {
+  const data = await apiCall('GET', '/authen/v1/user_info', token, null, null);
+  if (data.code !== 0) {
+    throw new Error(`code=${data.code} msg=${data.msg}`);
+  }
+  const u = data.data || {};
+  const user = {
+    open_id: u.open_id,
+    union_id: u.union_id,
+    name: u.name,
+    en_name: u.en_name,
+    email: u.email,
+    mobile: u.mobile,
+    avatar: u.avatar_url,
+  };
+  out({ user, reply: `当前用户：${user.name}（${user.open_id}）` });
+}
+
+async function getUser(args, token) {
+  const data = await apiCall(
+    'GET',
+    `/contact/v3/users/${encodeURIComponent(args.userId)}`,
+    token, null,
+    { user_id_type: args.userIdType },
+  );
+  if (data.code !== 0) {
+    if (data.code === 41050) {
+      die({
+        error: 'permission_required',
+        message: '无权限查询该用户信息。该用户不在当前用户的组织架构可见范围内。',
+        auth_type: 'tenant',
+        reply: '**权限不足：该用户不在您的组织架构可见范围内，无法查询其信息。**',
+      });
+    }
+    throw new Error(`code=${data.code} msg=${data.msg}`);
+  }
+  const u = data.data?.user || {};
+  const user = {
+    open_id: u.open_id,
+    union_id: u.union_id,
+    user_id: u.user_id,
+    name: u.name,
+    en_name: u.en_name,
+    email: u.email,
+    mobile: u.mobile,
+    department_ids: u.department_ids,
+    avatar: u.avatar?.avatar_72,
+  };
+  out({ user, reply: `用户信息：${user.name}（${user.open_id}）` });
+}
 
 async function searchUsers(args, token) {
   const query = {
@@ -113,7 +175,13 @@ async function searchUsers(args, token) {
 async function main() {
   const args = parseArgs();
   if (!args.openId) die({ error: 'missing_param', message: '--open-id 参数必填' });
-  if (!args.query) die({ error: 'missing_param', message: '--query 参数必填' });
+
+  if (args.action === 'search' && !args.query) {
+    die({ error: 'missing_param', message: '--query 参数必填（action=search）' });
+  }
+  if (args.action === 'get' && !args.userId) {
+    die({ error: 'missing_param', message: '--user-id 参数必填（action=get）' });
+  }
 
   let cfg;
   try { cfg = getConfig(__dirname); } catch (err) {
@@ -132,8 +200,20 @@ async function main() {
     });
   }
 
+  const scopesByAction = {
+    search:  ['search:user', 'contact:user:search'],
+    get_me:  ['authen:user_info'],
+    get:     ['contact:user.base:readonly'],
+  };
+
   try {
-    await searchUsers(args, accessToken);
+    if (args.action === 'get_me') {
+      await getMe(accessToken);
+    } else if (args.action === 'get') {
+      await getUser(args, accessToken);
+    } else {
+      await searchUsers(args, accessToken);
+    }
   } catch (err) {
     const msg = err.message || '';
     if (msg.includes('99991663')) {
@@ -146,8 +226,8 @@ async function main() {
       die({
         error: 'permission_required',
         message: msg,
-        required_scopes: ['search:user', 'contact:user:search'],
-        reply: '**权限不足，需要重新授权以获取搜索用户的权限。**',
+        required_scopes: scopesByAction[args.action] || [],
+        reply: '**权限不足，需要重新授权以获取所需权限。**',
       });
     }
     die({ error: 'api_error', message: msg });

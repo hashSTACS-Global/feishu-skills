@@ -34,7 +34,7 @@ node install.js
 | **feishu-docx-download** | Download file attachments from Feishu Wiki and extract text content (docx/pdf/pptx/xlsx/xls/html/rtf/epub/txt/csv, etc.) |
 | **feishu-drive** | Feishu Drive folder operations (currently: list folder items, create folder) |
 | **feishu-image-ocr** | Image OCR via Feishu API. Chinese/English, pure Node.js, zero extra deps. |
-| **feishu-search-user** | Search feishu user by name |
+| **feishu-search-user** | Search users by keyword, get current user profile, or look up a user by `user_id` / `union_id` |
 
 
 ---
@@ -188,6 +188,9 @@ feishu-skills/
 ├── feishu-image-ocr/
 │   ├── SKILL.md
 │   └── ocr.js            # Feishu OCR API caller
+├── feishu-search-user/
+│   ├── SKILL.md
+│   └── search-user.js    # Search Feishu users by name
 └── install.js            # Cross-platform installer
 ```
 

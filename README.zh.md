@@ -34,7 +34,7 @@ node install.js
 | **feishu-docx-download** | 下载飞书 Wiki 中的附件文件并提取正文文本，支持 docx/pdf/pptx/xlsx/xls/html/rtf/epub/txt/csv 等格式 |
 | **feishu-drive** | 云盘文件夹操作（当前支持列出目录、创建文件夹） |
 | **feishu-image-ocr** | 通用图片 OCR 文字识别，调用飞书 OCR API，支持中英文混排，纯 Node.js 实现，零额外依赖 |
-| **feishu-search-user** | 查询用户信息 |
+| **feishu-search-user** | 按关键词模糊搜索用户、获取当前用户自己的信息、按 `user_id` / `union_id` 精确查询指定用户 |
 
 ---
 
@@ -188,6 +188,9 @@ feishu-skills/
 ├── feishu-image-ocr/
 │   ├── SKILL.md
 │   └── ocr.js                # 飞书 OCR API 调用
+├── feishu-search-user/
+│   ├── SKILL.md
+│   └── search-user.js        # 按姓名搜索飞书用户
 └── install.js                # 跨平台安装脚本
 ```
 
