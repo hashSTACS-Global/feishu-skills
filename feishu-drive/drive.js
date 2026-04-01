@@ -2,13 +2,25 @@
 /**
  * feishu-drive: Minimal Feishu Drive helper using per-user OAuth token.
  *
- * Supported actions (others can be added later as needed):
+ * Supported actions:
  *
  *   # List folder contents
  *   node ./drive.js --open-id "ou_xxx" --action list --folder-token "TOKEN"
  *
  *   # Create folder
  *   node ./drive.js --open-id "ou_xxx" --action create_folder --name "文件夹名" --folder-token "父文件夹TOKEN"
+ *
+ *   # Batch get meta
+ *   node ./drive.js --open-id "ou_xxx" --action get_meta --request-docs "token1:docx,token2:sheet"
+ *
+ *   # Copy file
+ *   node ./drive.js --open-id "ou_xxx" --action copy --file-token "TOKEN" --name "副本名" --type "docx" --folder-token "目标目录TOKEN"
+ *
+ *   # Move file (async)
+ *   node ./drive.js --open-id "ou_xxx" --action move --file-token "TOKEN" --type "docx" --folder-token "目标目录TOKEN"
+ *
+ *   # Delete file (async)
+ *   node ./drive.js --open-id "ou_xxx" --action delete --file-token "TOKEN" --type "docx"
  *
  * Output: always a single-line JSON object.
  *
@@ -20,6 +32,7 @@
  */
 
 const path = require('path');
+const fs = require('fs');
 const { getConfig, getValidToken } = require(
   path.join(__dirname, '../feishu-auth/token-utils.js'),
 );
@@ -35,6 +48,13 @@ function parseArgs() {
     action: null,
     folderToken: '',
     name: '',
+    fileToken: null,
+    type: null,
+    requestDocs: '',
+    filePath: null,
+    fileBase64: null,
+    fileName: null,
+    outputPath: null,
   };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -49,6 +69,27 @@ function parseArgs() {
         break;
       case '--name':
         r.name = argv[++i];
+        break;
+      case '--file-token':
+        r.fileToken = argv[++i];
+        break;
+      case '--type':
+        r.type = argv[++i];
+        break;
+      case '--request-docs':
+        r.requestDocs = argv[++i] || '';
+        break;
+      case '--file-path':
+        r.filePath = argv[++i];
+        break;
+      case '--file-base64':
+        r.fileBase64 = argv[++i];
+        break;
+      case '--file-name':
+        r.fileName = argv[++i];
+        break;
+      case '--output-path':
+        r.outputPath = argv[++i];
         break;
     }
   }
@@ -91,6 +132,22 @@ async function apiCall(method, urlPath, token, { body, query } = {}) {
     throw new Error(`Feishu API parse error: ${res.status} ${res.statusText}`);
   }
   return data;
+}
+
+async function apiCallRaw(method, urlPath, token, { body, query, headers } = {}) {
+  let url = `https://open.feishu.cn/open-apis${urlPath}`;
+  if (query && Object.keys(query).length > 0) {
+    const qs = new URLSearchParams(query).toString();
+    url += (url.includes('?') ? '&' : '?') + qs;
+  }
+  return fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(headers || {}),
+    },
+    body,
+  });
 }
 
 /**
@@ -145,6 +202,246 @@ async function createFolder(accessToken, name, parentFolderToken) {
   return data.data;
 }
 
+const DOC_TYPES = new Set([
+  'doc',
+  'sheet',
+  'file',
+  'bitable',
+  'docx',
+  'folder',
+  'mindnote',
+  'slides',
+]);
+
+function parseRequestDocs(input) {
+  if (!input || !input.trim()) {
+    throw new Error('--request-docs 参数必填，格式如 token1:docx,token2:sheet');
+  }
+  const parts = input.split(',').map(s => s.trim()).filter(Boolean);
+  if (!parts.length) {
+    throw new Error('--request-docs 不能为空');
+  }
+  if (parts.length > 50) {
+    throw new Error('--request-docs 最多 50 条');
+  }
+  const requestDocs = parts.map((part) => {
+    const [docToken, docType] = part.split(':').map(s => (s || '').trim());
+    if (!docToken || !docType) {
+      throw new Error(`request-docs 项格式错误: ${part}，应为 token:type`);
+    }
+    if (!DOC_TYPES.has(docType)) {
+      throw new Error(`不支持的 doc_type: ${docType}`);
+    }
+    return { doc_token: docToken, doc_type: docType };
+  });
+  return requestDocs;
+}
+
+async function getMeta(accessToken, requestDocs) {
+  const data = await apiCall('POST', '/drive/v1/metas/batch_query', accessToken, {
+    body: { request_docs: requestDocs },
+  });
+  if (data.code !== 0) {
+    throw new Error(`Get meta failed: code=${data.code} msg=${data.msg}`);
+  }
+  return data.data?.metas || [];
+}
+
+async function copyFile(accessToken, fileToken, name, type, folderToken) {
+  const data = await apiCall('POST', `/drive/v1/files/${encodeURIComponent(fileToken)}/copy`, accessToken, {
+    body: {
+      name,
+      type,
+      folder_token: folderToken || '',
+    },
+  });
+  if (data.code !== 0) {
+    throw new Error(`Copy file failed: code=${data.code} msg=${data.msg}`);
+  }
+  return data.data?.file;
+}
+
+async function moveFile(accessToken, fileToken, type, folderToken) {
+  const data = await apiCall('POST', `/drive/v1/files/${encodeURIComponent(fileToken)}/move`, accessToken, {
+    body: {
+      type,
+      folder_token: folderToken,
+    },
+  });
+  if (data.code !== 0) {
+    throw new Error(`Move file failed: code=${data.code} msg=${data.msg}`);
+  }
+  return data.data || {};
+}
+
+async function deleteFile(accessToken, fileToken, type) {
+  const data = await apiCall('DELETE', `/drive/v1/files/${encodeURIComponent(fileToken)}`, accessToken, {
+    query: { type },
+  });
+  if (data.code !== 0) {
+    throw new Error(`Delete file failed: code=${data.code} msg=${data.msg}`);
+  }
+  return data.data || {};
+}
+
+const UPLOAD_ALL_LIMIT = 15 * 1024 * 1024;
+
+function loadUploadInput(args) {
+  if (args.filePath) {
+    const resolved = path.resolve(args.filePath);
+    if (!fs.existsSync(resolved)) {
+      throw new Error(`文件不存在: ${resolved}`);
+    }
+    const stat = fs.statSync(resolved);
+    if (!stat.isFile()) {
+      throw new Error(`不是有效文件: ${resolved}`);
+    }
+    return {
+      fileName: path.basename(resolved),
+      buffer: fs.readFileSync(resolved),
+      source: 'file_path',
+      sourcePath: resolved,
+    };
+  }
+  if (args.fileBase64) {
+    if (!args.fileName) {
+      throw new Error('使用 --file-base64 时必须提供 --file-name');
+    }
+    return {
+      fileName: args.fileName,
+      buffer: Buffer.from(args.fileBase64, 'base64'),
+      source: 'file_base64',
+    };
+  }
+  throw new Error('上传必须提供 --file-path 或 --file-base64');
+}
+
+async function uploadAll(accessToken, fileName, buffer, folderToken) {
+  const form = new FormData();
+  form.append('file_name', fileName);
+  form.append('parent_type', 'explorer');
+  form.append('parent_node', folderToken || '');
+  form.append('size', String(buffer.length));
+  form.append('file', new Blob([buffer]), fileName);
+
+  const res = await apiCallRaw('POST', '/drive/v1/files/upload_all', accessToken, {
+    body: form,
+  });
+  const data = await res.json();
+  if (data.code !== 0) {
+    throw new Error(`Upload all failed: code=${data.code} msg=${data.msg}`);
+  }
+  const file = data.data?.file || {};
+  return {
+    file_token: file.token || file.file_token || null,
+    file_name: file.name || fileName,
+    size: buffer.length,
+    data: data.data || {},
+  };
+}
+
+async function uploadPrepare(accessToken, fileName, size, folderToken) {
+  const data = await apiCall('POST', '/drive/v1/files/upload_prepare', accessToken, {
+    body: {
+      file_name: fileName,
+      parent_type: 'explorer',
+      parent_node: folderToken || '',
+      size,
+    },
+  });
+  if (data.code !== 0) {
+    throw new Error(`Upload prepare failed: code=${data.code} msg=${data.msg}`);
+  }
+  return data.data || {};
+}
+
+async function uploadPart(accessToken, uploadId, seq, chunkBuffer) {
+  const form = new FormData();
+  form.append('upload_id', uploadId);
+  form.append('seq', String(seq));
+  form.append('size', String(chunkBuffer.length));
+  form.append('file', new Blob([chunkBuffer]), `part-${seq}`);
+
+  const res = await apiCallRaw('POST', '/drive/v1/files/upload_part', accessToken, {
+    body: form,
+  });
+  const data = await res.json();
+  if (data.code !== 0) {
+    throw new Error(`Upload part failed: seq=${seq} code=${data.code} msg=${data.msg}`);
+  }
+}
+
+async function uploadFinish(accessToken, uploadId, blockNum) {
+  const data = await apiCall('POST', '/drive/v1/files/upload_finish', accessToken, {
+    body: {
+      upload_id: uploadId,
+      block_num: blockNum,
+    },
+  });
+  if (data.code !== 0) {
+    throw new Error(`Upload finish failed: code=${data.code} msg=${data.msg}`);
+  }
+  const file = data.data?.file || {};
+  return {
+    file_token: file.token || file.file_token || null,
+    file_name: file.name || null,
+    data: data.data || {},
+  };
+}
+
+async function uploadFile(accessToken, fileName, buffer, folderToken) {
+  if (buffer.length <= UPLOAD_ALL_LIMIT) {
+    const uploaded = await uploadAll(accessToken, fileName, buffer, folderToken);
+    return { ...uploaded, mode: 'upload_all' };
+  }
+
+  const prepared = await uploadPrepare(accessToken, fileName, buffer.length, folderToken);
+  const uploadId = prepared.upload_id;
+  const blockSize = prepared.block_size || UPLOAD_ALL_LIMIT;
+  const blockNum = prepared.block_num || Math.ceil(buffer.length / blockSize);
+  if (!uploadId) {
+    throw new Error('Upload prepare 未返回 upload_id');
+  }
+
+  for (let seq = 0; seq < blockNum; seq++) {
+    const start = seq * blockSize;
+    const end = Math.min(start + blockSize, buffer.length);
+    const chunk = buffer.subarray(start, end);
+    await uploadPart(accessToken, uploadId, seq, chunk);
+  }
+
+  const finished = await uploadFinish(accessToken, uploadId, blockNum);
+  return {
+    ...finished,
+    mode: 'multipart',
+    file_name: finished.file_name || fileName,
+    size: buffer.length,
+  };
+}
+
+async function downloadFileBuffer(accessToken, fileToken) {
+  const res = await apiCallRaw('GET', `/drive/v1/files/${encodeURIComponent(fileToken)}/download`, accessToken);
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Download failed: status=${res.status} body=${txt.slice(0, 300)}`);
+  }
+  const reader = res.body?.getReader?.();
+  if (!reader) {
+    const arr = await res.arrayBuffer();
+    return Buffer.from(arr);
+  }
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = Buffer.from(value);
+    chunks.push(chunk);
+    total += chunk.length;
+  }
+  return Buffer.concat(chunks, total);
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -156,7 +453,7 @@ async function main() {
     die({ error: 'missing_param', message: '--open-id 参数必填' });
   }
   if (!args.action) {
-    die({ error: 'missing_param', message: '--action 参数必填（list 或 create_folder）' });
+    die({ error: 'missing_param', message: '--action 参数必填（list/create_folder/get_meta/copy/move/upload/download/delete）' });
   }
 
   let cfg;
@@ -213,10 +510,130 @@ async function main() {
       return;
     }
 
+    if (args.action === 'get_meta') {
+      const requestDocs = parseRequestDocs(args.requestDocs);
+      const metas = await getMeta(accessToken, requestDocs);
+      out({
+        action: 'get_meta',
+        count: metas.length,
+        metas,
+        reply: `已获取 ${metas.length} 条文件元信息。`,
+      });
+      return;
+    }
+
+    if (args.action === 'copy') {
+      if (!args.fileToken) {
+        die({ error: 'missing_param', message: '--file-token 参数必填（待复制文件 token）' });
+      }
+      if (!args.name) {
+        die({ error: 'missing_param', message: '--name 参数必填（副本名称）' });
+      }
+      if (!args.type) {
+        die({ error: 'missing_param', message: '--type 参数必填（文档类型）' });
+      }
+      if (!DOC_TYPES.has(args.type)) {
+        die({ error: 'invalid_param', message: `--type 不支持：${args.type}` });
+      }
+      const file = await copyFile(accessToken, args.fileToken, args.name, args.type, args.folderToken || '');
+      out({
+        action: 'copy',
+        file,
+        reply: `复制已完成：${file?.name || args.name}`,
+      });
+      return;
+    }
+
+    if (args.action === 'move') {
+      if (!args.fileToken) {
+        die({ error: 'missing_param', message: '--file-token 参数必填（待移动文件 token）' });
+      }
+      if (!args.type) {
+        die({ error: 'missing_param', message: '--type 参数必填（文档类型）' });
+      }
+      if (!DOC_TYPES.has(args.type)) {
+        die({ error: 'invalid_param', message: `--type 不支持：${args.type}` });
+      }
+      if (!args.folderToken) {
+        die({ error: 'missing_param', message: '--folder-token 参数必填（目标文件夹 token）' });
+      }
+      const data = await moveFile(accessToken, args.fileToken, args.type, args.folderToken);
+      out({
+        action: 'move',
+        task_id: data.task_id || null,
+        data,
+        reply: data.task_id ? `移动任务已提交（task_id: ${data.task_id}）。` : '移动请求已提交。',
+      });
+      return;
+    }
+
+    if (args.action === 'upload') {
+      const input = loadUploadInput(args);
+      const uploaded = await uploadFile(accessToken, input.fileName, input.buffer, args.folderToken || '');
+      out({
+        action: 'upload',
+        mode: uploaded.mode,
+        file_token: uploaded.file_token,
+        file_name: uploaded.file_name || input.fileName,
+        size: uploaded.size || input.buffer.length,
+        source: input.source,
+        source_path: input.sourcePath || undefined,
+        data: uploaded.data,
+        reply: `文件上传成功：${uploaded.file_name || input.fileName}`,
+      });
+      return;
+    }
+
+    if (args.action === 'download') {
+      if (!args.fileToken) {
+        die({ error: 'missing_param', message: '--file-token 参数必填（待下载文件 token）' });
+      }
+      const fileBuffer = await downloadFileBuffer(accessToken, args.fileToken);
+      if (args.outputPath) {
+        const savePath = path.resolve(args.outputPath);
+        fs.mkdirSync(path.dirname(savePath), { recursive: true });
+        fs.writeFileSync(savePath, fileBuffer);
+        out({
+          action: 'download',
+          saved_path: savePath,
+          size: fileBuffer.length,
+          reply: `文件已下载到：${savePath}`,
+        });
+      } else {
+        out({
+          action: 'download',
+          file_content_base64: fileBuffer.toString('base64'),
+          size: fileBuffer.length,
+          reply: `文件下载成功（base64，${fileBuffer.length} bytes）。大文件建议使用 --output-path。`,
+        });
+      }
+      return;
+    }
+
+    if (args.action === 'delete') {
+      if (!args.fileToken) {
+        die({ error: 'missing_param', message: '--file-token 参数必填（待删除文件 token）' });
+      }
+      if (!args.type) {
+        die({ error: 'missing_param', message: '--type 参数必填（文档类型）' });
+      }
+      if (!DOC_TYPES.has(args.type)) {
+        die({ error: 'invalid_param', message: `--type 不支持：${args.type}` });
+      }
+      const data = await deleteFile(accessToken, args.fileToken, args.type);
+      out({
+        action: 'delete',
+        task_id: data.task_id || null,
+        data,
+        reply: data.task_id ? `删除任务已提交（task_id: ${data.task_id}）。` : '删除请求已提交。',
+      });
+      return;
+    }
+
     // Unsupported action
     die({
       error: 'unsupported_action',
-      message: `暂未实现的 action: ${args.action}。当前仅支持 list 和 create_folder。`,
+      message: `暂未实现的 action: ${args.action}。当前仅支持 list、create_folder、get_meta、copy、move、upload、download、delete。`,
     });
   } catch (err) {
     const msg = err.message || '';

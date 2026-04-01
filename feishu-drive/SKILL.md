@@ -1,7 +1,7 @@
 ---
 name: feishu-drive
 description: |
-  使用当前用户的个人 OAuth token 访问飞书云盘，目前仅支持列出文件夹与创建文件夹两个操作。
+  使用当前用户的个人 OAuth token 访问飞书云盘，支持目录列表/建目录/批量元信息/复制/移动操作。
 overrides: feishu_drive_file
 inline: true
 ---
@@ -24,10 +24,74 @@ node ./drive.js --open-id "SENDER_OPEN_ID" --action list --folder-token "TOKEN"
 node ./drive.js --open-id "SENDER_OPEN_ID" --action create_folder --name "文件夹名" --folder-token "父文件夹TOKEN"
 ```
 
+- **批量获取文件元信息（最多 50 条）**
+
+```bash
+node ./drive.js --open-id "SENDER_OPEN_ID" --action get_meta --request-docs "token1:docx,token2:sheet"
+```
+
+- **复制文件**
+
+```bash
+node ./drive.js --open-id "SENDER_OPEN_ID" --action copy --file-token "文件TOKEN" --name "副本名称" --type "docx" --folder-token "目标目录TOKEN"
+```
+
+- **移动文件（异步任务）**
+
+```bash
+node ./drive.js --open-id "SENDER_OPEN_ID" --action move --file-token "文件TOKEN" --type "docx" --folder-token "目标目录TOKEN"
+```
+
+- **上传文件**
+
+```bash
+node ./drive.js --open-id "SENDER_OPEN_ID" --action upload --file-path "本地文件路径" --folder-token "目标目录TOKEN"
+```
+
+备选（base64）：
+
+```bash
+node ./drive.js --open-id "SENDER_OPEN_ID" --action upload --file-base64 "BASE64内容" --file-name "文件名.ext" --folder-token "目标目录TOKEN"
+```
+
+- **下载文件**
+
+保存到本地：
+
+```bash
+node ./drive.js --open-id "SENDER_OPEN_ID" --action download --file-token "文件TOKEN" --output-path "/tmp/a.docx"
+```
+
+不指定路径（返回 base64）：
+
+```bash
+node ./drive.js --open-id "SENDER_OPEN_ID" --action download --file-token "文件TOKEN"
+```
+
+- **删除文件（异步任务）**
+
+```bash
+node ./drive.js --open-id "SENDER_OPEN_ID" --action delete --file-token "文件TOKEN" --type "docx"
+```
+
 说明：
 
 - `--folder-token` 为空或省略时，表示云盘根目录。
+- `--request-docs` 格式：`token:type`，多个用逗号分隔，最多 50 条。
+- `--type` 可选值：`doc`、`sheet`、`file`、`bitable`、`docx`、`folder`、`mindnote`、`slides`。
+- `upload` 时 `--file-path` 优先；未提供时可用 `--file-base64 + --file-name`。
+- `download` 未给 `--output-path` 时返回 `file_content_base64`，大文件建议指定输出路径。
 - 脚本返回 JSON，将 `reply` 字段原样输出给用户，必要时可结合 `items` / `folder_token` 等字段做后续编排。
+
+## 删除前确认（必须遵守）
+
+执行 `delete` 前，Agent **必须先调用 `get_meta`** 获取目标文件元信息，并向用户展示至少以下内容：
+
+- 文件名（title / name）
+- 文件类型（doc_type / type）
+- 目标 token（用于二次核对）
+
+只有在用户明确确认删除后，才允许执行 `--action delete`。
 
 ## 授权与权限不足处理
 
@@ -41,6 +105,12 @@ node ./drive.js --open-id "SENDER_OPEN_ID" --action create_folder --name "文件
 
 - **list**：列出指定 `folder_token` 下的所有文件与文件夹，支持自动翻页。
 - **create_folder**：在指定 `folder_token` 下创建新文件夹。
+- **get_meta**：批量获取文件元信息（标题、权限、大小等）。
+- **copy**：复制文件到目标目录，适用于模板复制场景。
+- **move**：移动文件到目标目录（异步），返回 `task_id` 时表示任务已提交。
+- **upload**：上传文件。小文件（<=15MB）走 `upload_all`，大文件自动走分片流程（prepare/part/finish）。
+- **download**：下载原始文件。可保存到本地路径，或直接返回 base64 内容。
+- **delete**：删除文件（异步），`type` 通过 query 参数传递，返回 `task_id` 表示删除任务已提交。
 
-其他如复制、移动、删除、上传、下载等操作暂未实现，后续可在保持 CLI 兼容的前提下按需扩展。
+后续可在保持 CLI 兼容的前提下继续扩展更多云盘操作。
 
