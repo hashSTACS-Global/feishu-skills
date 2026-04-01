@@ -15,6 +15,7 @@ Enables AI agents to read/write Feishu documents, send messages, manage calendar
 | **feishu-auth** | OAuth Device Flow auth hub. Shared by all other skills. |
 | **feishu-create-doc** | Create Feishu Docs with Markdown content |
 | **feishu-fetch-doc** | Read Feishu Docs / Wiki pages |
+| **feishu-search-doc** | Search cloud docs, wiki spaces/nodes, and filter drive folder entries by name |
 | **feishu-update-doc** | Update Feishu Docs (append or overwrite blocks) |
 | **feishu-im-read** | Read Feishu IM chat history |
 | **feishu-calendar** | Create / query / update calendar events |
@@ -97,6 +98,7 @@ Your `~/.openclaw/openclaw.json` must have a `channels.feishu` section with your
       "feishu_wiki",
       "feishu_wiki_*",
       "feishu_drive_*",
+      "feishu_search_doc_wiki",
       "feishu_im_*",
       "feishu_bitable_*",
       "feishu_calendar_*",
@@ -181,6 +183,9 @@ feishu-skills/
 ├── feishu-fetch-doc/
 │   ├── SKILL.md
 │   └── fetch-doc.js
+├── feishu-search-doc/
+│   ├── SKILL.md
+│   └── search-doc.js
 ├── feishu-update-doc/
 │   ├── SKILL.md
 │   └── update-doc.js

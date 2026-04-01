@@ -21,6 +21,7 @@ const SKILLS = [
   'feishu-auth',
   'feishu-create-doc',
   'feishu-fetch-doc',
+  'feishu-search-doc',
   'feishu-update-doc',
   'feishu-im-read',
   'feishu-calendar',

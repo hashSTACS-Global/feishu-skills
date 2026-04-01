@@ -10,6 +10,13 @@ inline: true
 
 直接用 `exec` 执行，不要检查文件或环境。
 
+## 文件夹 / 知识库仅有名称、没有 token 时
+
+当用户指定了**云盘文件夹名称**或**知识库 / 节点名称**，但未提供 `folder_token` / `wiki` 节点 token 时，**不要猜测 token**：先调用 **feishu-search-doc** 搜索，从返回 JSON 中取 `create_doc_token` 或对应字段，再执行本技能下的 `create-doc.js`。
+
+- 云盘文件夹：`feishu-search-doc` 的 `drive` / `all --include-drive` 结果中文件夹的 `token` → 传给 `--folder-token`
+- 知识库节点：`wiki_nodes` 结果中的 `node_token` → 传给 `--wiki-node`
+
 ## 命令
 
 ```bash

@@ -15,12 +15,14 @@
 | **feishu-auth** | OAuth Device Flow 授权中枢，被所有其他技能共享 |
 | **feishu-create-doc** | 使用 Markdown 内容创建飞书云文档 |
 | **feishu-fetch-doc** | 读取飞书云文档 / Wiki 页面 |
+| **feishu-search-doc** | 搜索云文档、知识库空间/节点，或在云盘目录下按名称筛选 |
 | **feishu-update-doc** | 更新飞书云文档（追加或覆盖内容块） |
 | **feishu-im-read** | 读取飞书 IM 聊天记录 |
 | **feishu-calendar** | 创建 / 查询 / 更新日历事件 |
 | **feishu-task** | 创建 / 查询 / 更新任务和任务清单 |
 | **feishu-bitable** | 多维表格应用、数据表、字段、记录、视图的完整增删改查 |
 | **feishu-docx-download** | 下载飞书 Wiki 中的附件文件并提取正文文本，支持 docx/pdf/pptx/xlsx/xls/html/rtf/epub/txt/csv 等格式 |
+| **feishu-drive** | 云盘文件夹操作（当前支持列出目录、创建文件夹） |
 | **feishu-image-ocr** | 通用图片 OCR 文字识别，调用飞书 OCR API，支持中英文混排，纯 Node.js 实现，零额外依赖 |
 
 ---
@@ -96,6 +98,7 @@ node install.js --target /自定义/skills路径
       "feishu_wiki",
       "feishu_wiki_*",
       "feishu_drive_*",
+      "feishu_search_doc_wiki",
       "feishu_im_*",
       "feishu_bitable_*",
       "feishu_calendar_*",
@@ -181,6 +184,9 @@ feishu-skills/
 ├── feishu-fetch-doc/
 │   ├── SKILL.md
 │   └── fetch-doc.js
+├── feishu-search-doc/
+│   ├── SKILL.md
+│   └── search-doc.js
 ├── feishu-update-doc/
 │   ├── SKILL.md
 │   └── update-doc.js
@@ -200,6 +206,9 @@ feishu-skills/
 │   ├── SKILL.md
 │   ├── download-doc.js
 │   └── extract.js
+├── feishu-drive/
+│   ├── SKILL.md
+│   └── drive.js
 ├── feishu-image-ocr/
 │   ├── SKILL.md
 │   └── ocr.js                # 飞书 OCR API 调用
