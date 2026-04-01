@@ -2,7 +2,7 @@
 name: feishu-auth
 description: |
   为当前用户完成飞书个人 OAuth 授权。自动发送授权链接给用户并等待完成。
-  overrides: feishu_oauth, feishu_oauth_batch_auth, feishu_pre_auth
+  overrides: feishu_oauth, feishu_oauth_batch_auth, feishu_pre_auth  
   inline: true
 ---
 
