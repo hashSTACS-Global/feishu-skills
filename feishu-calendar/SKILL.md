@@ -25,6 +25,9 @@ node ./calendar.js --open-id "ou_xxx" --action create_event --summary "标题" -
 node ./calendar.js --open-id "ou_xxx" --action create_event --summary "早会" --start-time "ISO8601" --end-time "ISO8601" --repeat daily
 node ./calendar.js --open-id "ou_xxx" --action create_event --summary "周会" --start-time "ISO8601" --end-time "ISO8601" --repeat weekly
 node ./calendar.js --open-id "ou_xxx" --action create_event --summary "月会" --start-time "ISO8601" --end-time "ISO8601" --repeat monthly
+# 查询日程（不传时间范围则默认查今天）
+node ./calendar.js --open-id "ou_xxx" --action list_events
+# 查询指定日期范围
 node ./calendar.js --open-id "ou_xxx" --action list_events --start-min "ISO8601" --start-max "ISO8601"
 node ./calendar.js --open-id "ou_xxx" --action get_event --event-id "ID" --need-attendee
 node ./calendar.js --open-id "ou_xxx" --action update_event --event-id "ID" --summary "新标题"

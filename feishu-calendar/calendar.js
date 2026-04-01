@@ -155,6 +155,35 @@ function toTimestamp(dateStr) {
 }
 
 /**
+ * Convert Feishu event time object { timestamp, timezone } or { date }
+ * to a human-readable string in the event's timezone (default Asia/Shanghai).
+ */
+function formatEventTime(timeObj) {
+  if (!timeObj) return '';
+  if (timeObj.date) return timeObj.date; // all-day event
+  const ts = parseInt(timeObj.timestamp, 10);
+  if (!ts || isNaN(ts)) return '';
+  const tz = timeObj.timezone || 'Asia/Shanghai';
+  return new Date(ts * 1000).toLocaleString('zh-CN', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+    hour12: false,
+  });
+}
+
+/**
+ * Enrich event objects with human-readable start_time_str / end_time_str.
+ */
+function enrichEventTimes(event) {
+  if (!event) return event;
+  const enriched = { ...event };
+  if (event.start_time) enriched.start_time_str = formatEventTime(event.start_time);
+  if (event.end_time) enriched.end_time_str = formatEventTime(event.end_time);
+  return enriched;
+}
+
+/**
  * Convert a date string to RFC3339 format with +08:00 timezone.
  * Accepts ISO8601 with timezone, or "YYYY-MM-DD HH:mm:ss" (treated as +08:00).
  */
@@ -272,11 +301,74 @@ async function listEvents(args, token) {
   const calId = args.calendarId || 'primary';
   const query = { page_size: String(Math.min(args.pageSize, 500)) };
   if (args.pageToken) query.page_token = args.pageToken;
-  if (args.startMin) query.start_time = toTimestamp(args.startMin);
-  if (args.startMax) query.end_time = toTimestamp(args.startMax);
+
+  // Default to today if no time range provided
+  if (args.startMin) {
+    query.start_time = toTimestamp(args.startMin);
+  } else {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    query.start_time = String(Math.floor(todayStart.getTime() / 1000));
+  }
+  if (args.startMax) {
+    query.end_time = toTimestamp(args.startMax);
+  } else if (!args.startMin) {
+    // Only auto-set end_time when start_time was also auto-set (today)
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    query.end_time = String(Math.floor(todayEnd.getTime() / 1000));
+  }
   const data = await apiCall('GET', `/calendar/v4/calendars/${calId}/events`, token, null, query);
   if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
-  out({ events: data.data?.items || [], has_more: data.data?.has_more, page_token: data.data?.page_token });
+  const events = (data.data?.items || []).map(enrichEventTimes);
+
+  // Build formatted reply so LLM can display directly without interpretation
+  const reply = formatEventList(events);
+  out({ events, has_more: data.data?.has_more, page_token: data.data?.page_token, reply });
+}
+
+/**
+ * Format event list into a human-readable reply string.
+ * LLM should output this directly without modification.
+ */
+function formatEventList(events) {
+  if (!events || events.length === 0) return '当前时间段内没有日程。';
+
+  const lines = [];
+  for (const ev of events) {
+    const summary = ev.summary || '未命名日程';
+    const startStr = ev.start_time_str || '';
+    const endStr = ev.end_time_str || '';
+    const status = ev.status || '';
+    const organizer = ev.event_organizer?.display_name || '';
+    const meetingUrl = ev.vchat?.meeting_url || '';
+    const description = ev.description || '';
+    const location = ev.location?.name || '';
+    const attendeeCount = ev.attendees?.length;
+
+    // Status badge
+    let badge = '';
+    if (status === 'cancelled') badge = '❌ 已取消';
+    else if (meetingUrl) badge = '📹 会议';
+    else badge = '📅 日程';
+
+    // Time range (extract HH:MM only for same-day display)
+    const startTime = startStr.split(' ')[1] || startStr;
+    const endTime = endStr.split(' ')[1] || endStr;
+    const timeRange = startTime && endTime ? `${startTime} - ${endTime}` : startStr;
+
+    let entry = `${badge}  **${summary}**\n    时间：${timeRange}`;
+    if (organizer) entry += `\n    组织者：${organizer}`;
+    if (location) entry += `\n    地点：${location}`;
+    if (meetingUrl && status !== 'cancelled') entry += `\n    会议链接：${meetingUrl}`;
+    if (description) entry += `\n    备注：${description}`;
+    if (attendeeCount) entry += `\n    参与者：${attendeeCount} 人`;
+    if (status === 'cancelled') entry += `\n    ⚠️ 此日程已被取消`;
+
+    lines.push(entry);
+  }
+
+  return lines.join('\n\n');
 }
 
 async function getEvent(args, token) {
@@ -286,7 +378,7 @@ async function getEvent(args, token) {
   if (args.needAttendee) query.need_attendee = 'true';
   const data = await apiCall('GET', `/calendar/v4/calendars/${calId}/events/${args.eventId}`, token, null, query);
   if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
-  out({ event: data.data?.event });
+  out({ event: enrichEventTimes(data.data?.event) });
 }
 
 async function updateEvent(args, token) {
@@ -319,7 +411,8 @@ async function searchEvents(args, token) {
   if (args.pageToken) query.page_token = args.pageToken;
   const data = await apiCall('POST', `/calendar/v4/calendars/${calId}/events/search`, token, body, query);
   if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
-  out({ events: data.data?.items || [], has_more: data.data?.has_more, page_token: data.data?.page_token });
+  const events = (data.data?.items || []).map(enrichEventTimes);
+  out({ events, has_more: data.data?.has_more, page_token: data.data?.page_token });
 }
 
 async function addAttendees(args, token) {
