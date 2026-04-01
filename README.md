@@ -24,6 +24,8 @@ Enables AI agents to read/write Feishu documents, send messages, manage calendar
 | **feishu-docx-download** | Download file attachments from Feishu Wiki and extract text content (docx/pdf/pptx/xlsx/xls/html/rtf/epub/txt/csv, etc.) |
 | **feishu-drive** | Feishu Drive folder operations (currently: list folder items, create folder) |
 | **feishu-image-ocr** | Image OCR via Feishu API. Chinese/English, pure Node.js, zero extra deps. |
+| **feishu-search-user** | Search feishu user by name |
+
 
 ---
 
