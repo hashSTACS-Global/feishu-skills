@@ -219,3 +219,8 @@ console.log(JSON.stringify({
   updated,
   reply: `飞书技能安装完成！环境：${detected?.env ?? 'custom'}，路径：${targetDir}。已安装：${installed.join(', ')}${updated.length ? `；已更新：${updated.join(', ')}` : ''}。`,
 }));
+
+// Clean up: remove the cloned repo directory (including this file) after install
+process.on('exit', () => {
+  try { removeRecursive(repoDir); } catch (_) {}
+});
