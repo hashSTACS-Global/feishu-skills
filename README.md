@@ -35,6 +35,7 @@ node install.js
 | **feishu-drive** | Feishu Drive folder operations (currently: list folder items, create folder) |
 | **feishu-image-ocr** | Image OCR via Feishu API. Chinese/English, pure Node.js, zero extra deps. |
 | **feishu-search-user** | Search users by keyword, get current user profile, or look up a user by `user_id` / `union_id` |
+| **feishu-sheet** | Read/write Feishu Spreadsheets (Sheets) — info, read, write, append, find, create, export |
 
 
 ---
@@ -191,6 +192,9 @@ feishu-skills/
 ├── feishu-search-user/
 │   ├── SKILL.md
 │   └── search-user.js    # Search Feishu users by name
+├── feishu-sheet/
+│   ├── SKILL.md
+│   └── sheet.js          # Spreadsheet read/write/find/create/export
 └── install.js            # Cross-platform installer
 ```
 
