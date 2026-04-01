@@ -8,6 +8,16 @@
 
 ---
 
+## 安装
+
+```bash
+git clone https://github.com/hashSTACS-Global/feishu-skills.git
+cd feishu-skills
+node install.js
+```
+
+---
+
 ## 包含的技能
 
 | 技能 | 说明 |
@@ -40,39 +50,6 @@
   - `bitable:app`
 
 ---
-
-## 安装
-
-### 方式 A — AI 驱动安装（推荐）
-
-直接告诉你的 [OpenClaw](https://github.com/openclaw/openclaw) 或 [EnClaws](https://github.com/hashSTACS-Global/EnClaws) Agent：
-
-```
-帮我安装技能包：https://github.com/hashSTACS-Global/feishu-skills
-```
-
-Agent 会自动 clone 仓库并执行 `node install.js`。
-
-> **如果 Agent 无法访问 GitHub**，请手动下载/传输仓库文件到服务器，然后让 Agent 在仓库目录下执行 `node install.js`。**不要手动复制技能目录**——必须使用 `install.js` 确保目录结构正确。
-
-### 方式 B — 手动安装
-
-```bash
-git clone https://github.com/hashSTACS-Global/feishu-skills.git
-cd feishu-skills
-node install.js
-```
-
-`install.js` 会自动检测运行环境，将文件复制到对应目录：
-- **EnClaws**：`~/.enclaws/tenants/<tenant-id>/skills/`
-- **OpenClaw**：`~/.openclaw/workspace/skills/`
-
-如需指定自定义目录：
-```bash
-node install.js --target /自定义/skills路径
-```
-
-> 安装统一使用 `node install.js`，所有平台行为完全一致。
 
 ---
 

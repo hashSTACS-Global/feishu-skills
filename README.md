@@ -8,6 +8,16 @@ Enables AI agents to read/write Feishu documents, send messages, manage calendar
 
 ---
 
+## Installation
+
+```bash
+git clone https://github.com/hashSTACS-Global/feishu-skills.git
+cd feishu-skills
+node install.js
+```
+
+---
+
 ## Skills Included
 
 | Skill | Description |
@@ -41,39 +51,6 @@ Enables AI agents to read/write Feishu documents, send messages, manage calendar
   - `bitable:app`
 
 ---
-
-## Installation
-
-### Option A — AI-driven (recommended)
-
-Tell your [OpenClaw](https://github.com/openclaw/openclaw) or [EnClaws](https://github.com/hashSTACS-Global/EnClaws) agent:
-
-```
-Install skill pack: https://github.com/hashSTACS-Global/feishu-skills
-```
-
-The agent will clone the repo and run `node install.js` automatically.
-
-> **If the agent cannot access GitHub**, manually download / transfer the repo files to the server, then tell the agent to run `node install.js` from the repo directory. **Do NOT manually copy skill directories** — always use `install.js` to ensure correct structure.
-
-### Option B — Manual
-
-```bash
-git clone https://github.com/hashSTACS-Global/feishu-skills.git
-cd feishu-skills
-node install.js
-```
-
-`install.js` auto-detects your environment and installs to the correct directory:
-- **EnClaws**: `~/.enclaws/tenants/<tenant-id>/skills/`
-- **OpenClaw**: `~/.openclaw/workspace/skills/`
-
-To specify a custom target directory:
-```bash
-node install.js --target /path/to/skills
-```
-
-> Installation uses `node install.js`, which works identically on all platforms.
 
 ---
 
