@@ -150,8 +150,22 @@ async function resolveSpreadsheetToken(args, accessToken) {
       query: { token, obj_type: 'wiki' },
     });
     if (data.code !== 0) throw new Error(`Wiki 节点解析失败: code=${data.code} msg=${data.msg}`);
-    const obj = data.data?.node?.obj_token;
+    const node = data.data?.node;
+    const obj = node?.obj_token;
     if (!obj) throw new Error(`无法从 wiki token 解析 spreadsheet_token: ${token}`);
+    const objType = node.obj_type;
+    if (objType && objType !== 'sheet') {
+      const typeHints = {
+        bitable: '这是一个多维表格（Bitable），请改用 feishu-bitable 技能操作。',
+        docx: '这是一个文档（Docx），请改用 feishu-fetch-doc 技能读取。',
+        doc: '这是一个文档（Doc），请改用 feishu-fetch-doc 技能读取。',
+        file: '这是一个文件附件，请改用 feishu-docx-download 技能下载。',
+        mindnote: '这是一个思维笔记，feishu-sheet 不支持此类型。',
+        slides: '这是一个幻灯片，feishu-sheet 不支持此类型。',
+      };
+      const hint = typeHints[objType] || `该知识库节点类型为 ${objType}，不是电子表格（sheet）。`;
+      throw new Error(`类型不匹配：${hint}（节点标题：${node.title || ''}）`);
+    }
     token = obj;
   }
 
@@ -159,7 +173,7 @@ async function resolveSpreadsheetToken(args, accessToken) {
 }
 
 async function getFirstSheetId(spreadsheetToken, accessToken) {
-  const data = await apiCall('GET', `/sheets/v2/spreadsheets/${spreadsheetToken}/sheets/query`, accessToken);
+  const data = await apiCall('GET', `/sheets/v3/spreadsheets/${spreadsheetToken}/sheets/query`, accessToken);
   if (data.code !== 0) throw new Error(`获取工作表列表失败: code=${data.code} msg=${data.msg}`);
   const first = (data.data?.sheets ?? [])[0];
   if (!first?.sheet_id) throw new Error('该电子表格没有工作表');
@@ -198,8 +212,8 @@ async function actionInfo(args, accessToken) {
   const { token } = await resolveSpreadsheetToken(args, accessToken);
 
   const [ssRes, shRes] = await Promise.all([
-    apiCall('GET', `/sheets/v2/spreadsheets/${token}`, accessToken),
-    apiCall('GET', `/sheets/v2/spreadsheets/${token}/sheets/query`, accessToken),
+    apiCall('GET', `/sheets/v3/spreadsheets/${token}`, accessToken),
+    apiCall('GET', `/sheets/v3/spreadsheets/${token}/sheets/query`, accessToken),
   ]);
 
   if (ssRes.code !== 0) throw new Error(`code=${ssRes.code} msg=${ssRes.msg}`);
@@ -351,7 +365,7 @@ async function actionCreate(args, accessToken) {
   if (args.headers || args.data) {
     const allRows = [...(args.headers ? [args.headers] : []), ...(args.data || [])];
     if (allRows.length > 0) {
-      const sheetsData = await apiCall('GET', `/sheets/v2/spreadsheets/${token}/sheets/query`, accessToken);
+      const sheetsData = await apiCall('GET', `/sheets/v3/spreadsheets/${token}/sheets/query`, accessToken);
       const firstSheet = (sheetsData.data?.sheets ?? [])[0];
       if (firstSheet?.sheet_id) {
         const numCols = Math.max(...allRows.map(r => r.length));
