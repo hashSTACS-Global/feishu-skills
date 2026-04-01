@@ -171,9 +171,8 @@ async function init(openId, cfg, scopeStr) {
 
   out({
     status: 'awaiting',
-    url: pending.verification_uri,
     expires_in: pending.expires_in,
-    message: `请在 ${Math.floor(pending.expires_in / 60)} 分钟内点击链接完成飞书授权`,
+    message: '授权已初始化，请使用 --auth-and-poll 模式发送授权卡片给用户。不要将授权链接直接展示给用户。',
   });
 
   return pending;
@@ -358,7 +357,23 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
       return;
     }
     process.stderr.write(`[auth-and-poll] existing pending not yet authorized (${json.error}), will re-use it\n`);
-    if (json.error === 'authorization_pending') {
+    if (json.error === 'authorization_pending' || json.error === 'slow_down') {
+      // Re-use existing pending — send card if not already sent, then poll
+      if (!existingPending.message_id) {
+        const cardResult = await sendCard({
+          openId,
+          chatId: resolvedChatId,
+          title: '🔐 飞书授权',
+          body: '**需要完成飞书授权才能继续操作**\n\n授权完成后将自动继续处理您的请求。',
+          buttonText: '点击这里完成飞书授权',
+          buttonUrl: existingPending.verification_uri,
+          color: 'blue',
+        });
+        if (cardResult.success && cardResult.message_id) {
+          savePending(openId, { ...existingPending, message_id: cardResult.message_id });
+          process.stderr.write(`[auth-and-poll] auth card sent for existing pending, message_id=${cardResult.message_id}\n`);
+        }
+      }
       const result = await pollLoop(openId, cfg, existingPending, timeoutMs, existingPending.message_id);
       out(result);
       if (result.status !== 'authorized') process.exit(1);
@@ -395,7 +410,7 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
   }
 
   // Internal poll loop — never returns polling_timeout to agent
-  const result = await pollLoop(openId, cfg, pending, timeoutMs, sentMessageId);
+  const result = await pollLoop(openId, cfg, pending, timeoutMs, cardResult.message_id);
   out(result);
   if (result.status !== 'authorized') process.exit(1);
 }
