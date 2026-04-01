@@ -20,6 +20,7 @@ const path = require('path');
 const { getConfig, getValidToken } = require(
   path.join(__dirname, '../feishu-auth/token-utils.js'),
 );
+const { sendCard } = require(path.join(__dirname, '../feishu-auth/send-card.js'));
 
 // ---------------------------------------------------------------------------
 // Arg parsing
@@ -359,22 +360,29 @@ async function main() {
       } catch (wikiErr) {
         // Non-fatal: document is created, just report the move failure
         const warnTitle = args.title || doc.title || '未命名文档';
-        out({
-          doc_id: documentId,
-          doc_url: docUrl,
-          reply: `文档「${warnTitle}」已创建：[点击查看](${docUrl})（移动到知识库失败：${wikiErr.message}）`,
-        });
+        await sendCard({
+          openId: args.openId,
+          title: '📄 文档已创建',
+          body: `文档「${warnTitle}」已创建（移动到知识库失败：${wikiErr.message}）`,
+          buttonText: '点击查看文档',
+          buttonUrl: docUrl,
+          color: 'orange',
+        }).catch(() => {});
+        out({ doc_id: documentId, doc_url: docUrl, reply: `文档「${warnTitle}」已创建` });
         return;
       }
     }
 
     const finalTitle = args.title || doc.title || '未命名文档';
-    out({
-      doc_id: documentId,
-      doc_url: docUrl,
-      title: finalTitle,
-      reply: `文档「${finalTitle}」已创建：[点击查看](${docUrl})`,
-    });
+    await sendCard({
+      openId: args.openId,
+      title: '📄 文档已创建',
+      body: `文档「${finalTitle}」创建成功`,
+      buttonText: '点击查看文档',
+      buttonUrl: docUrl,
+      color: 'green',
+    }).catch(() => {});
+    out({ doc_id: documentId, doc_url: docUrl, title: finalTitle, reply: `文档「${finalTitle}」已创建` });
   } catch (err) {
     // Token may have been revoked server-side
     if (err.message && err.message.includes('99991663')) {

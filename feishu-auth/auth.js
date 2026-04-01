@@ -23,6 +23,7 @@ const {
   deletePending,
   deleteToken,
 } = require(path.join(__dirname, './token-utils.js'));
+const { sendCard, updateCard, getTenantAccessToken } = require(path.join(__dirname, './send-card.js'));
 
 // ---------------------------------------------------------------------------
 // Arg parsing
@@ -100,93 +101,10 @@ function buildMergedScopes(extraScopesStr, existingTokenScope) {
   return [...set].join(' ');
 }
 
-async function getTenantAccessToken(appId, appSecret) {
-  const res = await fetch(
-    'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
-    },
-  );
-  const json = await res.json();
-  if (json.code !== 0) {
-    throw new Error(`Failed to get tenant_access_token: ${json.msg}`);
-  }
-  return json.tenant_access_token;
-}
+// getTenantAccessToken, sendFeishuMessage, updateFeishuMessage, buildAuthCard,
+// buildSuccessCard — all moved to send-card.js
 
-async function sendFeishuMessage(tenantToken, receiveIdType, receiveId, cardContent, rawOverride) {
-  const payload = rawOverride
-    ? { receive_id: receiveId, ...rawOverride }
-    : { receive_id: receiveId, msg_type: 'interactive', content: JSON.stringify(cardContent) };
-  const res = await fetch(
-    `https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${tenantToken}`,
-      },
-      body: JSON.stringify(payload),
-    },
-  );
-  return res.json();
-}
-
-async function updateFeishuMessage(tenantToken, messageId, cardContent) {
-  const res = await fetch(
-    `https://open.feishu.cn/open-apis/im/v1/messages/${messageId}`,
-    {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${tenantToken}`,
-      },
-      body: JSON.stringify({ content: JSON.stringify(cardContent) }),
-    },
-  );
-  return res.json();
-}
-
-// Card 1.0 format (no schema/update_multi) — required for PATCH updates to work
-function buildAuthCard(url) {
-  return {
-    config: { wide_screen_mode: true },
-    header: {
-      title: { tag: 'plain_text', content: '🔐 飞书授权' },
-      template: 'blue',
-    },
-    elements: [
-      { tag: 'markdown', content: '**需要完成飞书授权才能继续操作**' },
-      {
-        tag: 'action',
-        actions: [{
-          tag: 'button',
-          text: { tag: 'plain_text', content: '点击这里完成飞书授权' },
-          type: 'primary',
-          url,
-        }],
-      },
-      { tag: 'markdown', content: '授权完成后将自动继续处理您的请求。' },
-    ],
-  };
-}
-
-function buildSuccessCard() {
-  return {
-    config: { wide_screen_mode: true },
-    header: {
-      title: { tag: 'plain_text', content: '✅ 授权成功' },
-      template: 'green',
-    },
-    elements: [
-      { tag: 'markdown', content: '飞书账号授权已完成，正在继续处理您的请求。' },
-    ],
-  };
-}
-
-async function tryUpdateCardToGreen(openId, cfg) {
+async function tryUpdateCardToGreen(openId) {
   const pending = readPending(openId);
   if (!pending?.message_id) return;
   const messageId = pending.message_id;
@@ -195,8 +113,12 @@ async function tryUpdateCardToGreen(openId, cfg) {
   if (Object.keys(rest).length > 0) savePending(openId, rest);
   else deletePending(openId);
   try {
-    const tenantToken = await getTenantAccessToken(cfg.appId, cfg.appSecret);
-    const result = await updateFeishuMessage(tenantToken, messageId, buildSuccessCard());
+    const result = await updateCard({
+      messageId,
+      title: '✅ 授权成功',
+      body: '飞书账号授权已完成，正在继续处理您的请求。',
+      color: 'green',
+    });
     process.stderr.write(`[auth] card updated to green: ${JSON.stringify(result)}\n`);
   } catch (err) {
     process.stderr.write(`[auth] card update failed (non-fatal): ${err.message}\n`);
@@ -333,7 +255,7 @@ async function pollUntilAuthorized(openId, cfg, pending, timeoutMs) {
 
     if (!error && json.access_token) {
       const tokenData = saveAuthorizedToken(openId, cfg, json);
-      await tryUpdateCardToGreen(openId, cfg);
+      await tryUpdateCardToGreen(openId);
       deletePending(openId);
       return {
         status: 'authorized',
@@ -427,7 +349,7 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
     const json = await tryExchange(existingPending.device_code, cfg);
     if (!json.error && json.access_token) {
       saveAuthorizedToken(openId, cfg, json);
-      await tryUpdateCardToGreen(openId, cfg);
+      await tryUpdateCardToGreen(openId);
       deletePending(openId);
       out({ status: 'authorized', message: '授权成功！' });
       return;
@@ -445,50 +367,28 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
   // Init: get device code and auth URL with merged scopes
   const pending = await initSilent(openId, cfg, mergedScope);
 
-  // Send auth card and save message_id for green card update later
-  let cardSent = false;
-  try {
-    const tenantToken = await getTenantAccessToken(cfg.appId, cfg.appSecret);
-    const card = buildAuthCard(pending.verification_uri);
-    const receiveIdType = resolvedChatId ? 'chat_id' : 'open_id';
-    const receiveId = resolvedChatId || openId;
-    const sendResult = await sendFeishuMessage(tenantToken, receiveIdType, receiveId, card);
-    if (sendResult.code !== 0) {
-      throw new Error(`IM API error: code=${sendResult.code} msg=${sendResult.msg}`);
-    }
-    // Save message_id so we can update card to green on authorization
-    const messageId = sendResult.data?.message_id;
-    if (messageId) {
-      const currentPending = readPending(openId) || {};
-      savePending(openId, { ...currentPending, message_id: messageId });
-    }
-    process.stderr.write(`[auth-and-poll] auth card sent, message_id=${messageId}\n`);
-    cardSent = true;
-  } catch (err) {
-    process.stderr.write(`[auth-and-poll] card failed: ${err.message}, trying text...\n`);
-  }
-
-  if (!cardSent) {
-    // Fallback: plain text message
-    try {
-      const tenantToken = await getTenantAccessToken(cfg.appId, cfg.appSecret);
-      const receiveIdType = resolvedChatId ? 'chat_id' : 'open_id';
-      const receiveId = resolvedChatId || openId;
-      await sendFeishuMessage(tenantToken, receiveIdType, receiveId, null, {
-        msg_type: 'text',
-        content: JSON.stringify({ text: `需要完成飞书授权，请点击链接完成授权：\n${pending.verification_uri}` }),
-      });
-    } catch (err2) {
-      // Last resort: output URL for AI to show manually
-      process.stderr.write(`[auth-and-poll] text fallback also failed: ${err2.message}\n`);
-      out({
-        status: 'awaiting',
-        url: pending.verification_uri,
-        reply: `请点击以下链接完成飞书授权：[点击授权](${pending.verification_uri})`,
-        message: '无法通过 IM 发送授权消息，请将 reply 内容直接展示给用户',
-      });
-      return;
-    }
+  // Send auth card via public send-card module (3-level fallback built in)
+  const cardResult = await sendCard({
+    openId,
+    chatId: resolvedChatId,
+    title: '🔐 飞书授权',
+    body: '**需要完成飞书授权才能继续操作**\n\n授权完成后将自动继续处理您的请求。',
+    buttonText: '点击这里完成飞书授权',
+    buttonUrl: pending.verification_uri,
+    color: 'blue',
+  });
+  if (cardResult.success && cardResult.message_id) {
+    const currentPending = readPending(openId) || {};
+    savePending(openId, { ...currentPending, message_id: cardResult.message_id });
+    process.stderr.write(`[auth-and-poll] auth card sent, message_id=${cardResult.message_id}\n`);
+  } else if (!cardResult.success) {
+    out({
+      status: 'awaiting',
+      url: pending.verification_uri,
+      reply: cardResult.reply,
+      message: '无法通过 IM 发送授权消息，请将 reply 内容直接展示给用户',
+    });
+    return;
   }
 
   // Internal poll loop — never returns polling_timeout to agent

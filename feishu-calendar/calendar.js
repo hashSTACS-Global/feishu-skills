@@ -24,6 +24,9 @@ const path = require('path');
 const { getConfig, getValidToken } = require(
   path.join(__dirname, '../feishu-auth/token-utils.js'),
 );
+const { sendCard } = require(
+  path.join(__dirname, '../feishu-auth/send-card.js'),
+);
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -237,11 +240,22 @@ async function createEvent(args, token) {
     }
   }
 
-  out({
-    event,
-    meeting_url: meetingUrl,
-    reply: `日程「${args.summary}」已创建${rrule ? `（重复：${args.repeat || args.recurrence}）` : ''}${meetingUrl ? `，会议链接：${meetingUrl}` : ''}`,
-  });
+  const summary = args.summary || '未命名日程';
+  const replyText = `日程「${summary}」已创建${rrule ? `（重复：${args.repeat || args.recurrence}）` : ''}`;
+
+  // Send card to user if there's a meeting URL
+  if (meetingUrl && args.openId) {
+    await sendCard({
+      openId: args.openId,
+      title: '📅 日程已创建',
+      body: replyText,
+      buttonText: '加入会议',
+      buttonUrl: meetingUrl,
+      color: 'green',
+    }).catch(() => {});
+  }
+
+  out({ event, meeting_url: meetingUrl, reply: replyText });
 }
 
 async function listEvents(args, token) {
