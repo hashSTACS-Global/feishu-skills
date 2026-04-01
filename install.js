@@ -176,7 +176,9 @@ if (!targetDir) {
   targetDir = detected.dir;
 }
 
-console.error(`[install] target directory: ${targetDir} (detected env: ${detected?.env ?? 'custom'})`);
+// Install into a feishu-skills subdirectory under the target skills dir
+const installDir = path.join(targetDir, 'feishu-skills');
+console.error(`[install] target directory: ${installDir} (detected env: ${detected?.env ?? 'custom'})`);
 
 const installed = [];
 const updated   = [];
@@ -184,7 +186,7 @@ const errors    = [];
 
 for (const skill of SKILLS) {
   const src = path.join(repoDir, skill);
-  const dst = path.join(targetDir, skill);
+  const dst = path.join(installDir, skill);
 
   if (!fs.existsSync(src)) continue;
 
@@ -201,12 +203,12 @@ if (errors.length > 0) {
   console.log(JSON.stringify({
     success: false,
     error: 'copy_failed',
-    target: targetDir,
+    target: installDir,
     env: detected?.env ?? 'custom',
     installed,
     updated,
     errors,
-    message: `部分技能安装失败，目标目录：${targetDir}`,
+    message: `部分技能安装失败，目标目录：${installDir}`,
     hint: `请确认当前用户对目标目录有写入权限，然后重新执行：node install.js`,
   }));
   process.exit(1);
@@ -215,10 +217,10 @@ if (errors.length > 0) {
 console.log(JSON.stringify({
   success: true,
   env: detected?.env ?? 'custom',
-  target: targetDir,
+  target: installDir,
   installed,
   updated,
-  reply: `飞书技能安装完成！环境：${detected?.env ?? 'custom'}，路径：${targetDir}。已安装：${installed.join(', ')}${updated.length ? `；已更新：${updated.join(', ')}` : ''}。`,
+  reply: `飞书技能安装完成！环境：${detected?.env ?? 'custom'}，路径：${installDir}。已安装：${installed.join(', ')}${updated.length ? `；已更新：${updated.join(', ')}` : ''}。`,
 }));
 
 // Clean up: remove the cloned repo directory (including this file) after install
