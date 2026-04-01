@@ -22,6 +22,7 @@ const {
   savePending,
   deletePending,
   deleteToken,
+  getValidToken,
 } = require(path.join(__dirname, './token-utils.js'));
 
 // ---------------------------------------------------------------------------
@@ -286,12 +287,12 @@ async function tryExchange(deviceCode, cfg) {
 function saveAuthorizedToken(openId, cfg, data) {
   const now = Date.now();
   const tokenData = {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-    expires_at: now + (data.expires_in ?? 7200) * 1000,
-    refresh_expires_at: now + (data.refresh_token_expires_in ?? data.refresh_expires_in ?? 604800) * 1000,
-    scope: data.scope,
-    granted_at: now,
+    accessToken:      data.access_token,
+    refreshToken:     data.refresh_token,
+    expiresAt:        now + (data.expires_in ?? 7200) * 1000,
+    refreshExpiresAt: now + (data.refresh_token_expires_in ?? data.refresh_expires_in ?? 604800) * 1000,
+    scope:            data.scope,
+    grantedAt:        now,
   };
   saveToken(openId, cfg.appId, tokenData);
   return tokenData;
@@ -393,7 +394,6 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
   const resolvedChatId = chatId || process.env.ENCLAWS_CHAT_ID || null;
 
   // Check if already authorized AND has all requested scopes
-  const { getValidToken } = require(path.join(__dirname, './token-utils.js'));
   const existingToken = await getValidToken(openId, cfg.appId, cfg.appSecret);
   if (existingToken) {
     // If --scope was provided, check if current token already covers all requested scopes
@@ -601,9 +601,12 @@ async function status(openId, cfg) {
   }
 
   if (token) {
-    if (now < token.expires_at - 5 * 60 * 1000) {
-      out({ status: 'valid', expires_at: token.expires_at, scope: token.scope });
-    } else if (token.refresh_token && now < token.refresh_expires_at) {
+    const expiresAt = token.expiresAt ?? token.expires_at;
+    const refreshExpiresAt = token.refreshExpiresAt ?? token.refresh_expires_at;
+    const refreshToken = token.refreshToken ?? token.refresh_token;
+    if (now < expiresAt - 5 * 60 * 1000) {
+      out({ status: 'valid', expires_at: expiresAt, scope: token.scope });
+    } else if (refreshToken && now < refreshExpiresAt) {
       out({ status: 'needs_refresh', message: 'access_token 已过期但 refresh_token 有效' });
     } else {
       out({ status: 'expired', message: '授权已完全过期，需重新授权' });
