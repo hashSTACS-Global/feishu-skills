@@ -51,8 +51,6 @@ node install.js
 
 ---
 
----
-
 ## 配置
 
 ### OpenClaw
