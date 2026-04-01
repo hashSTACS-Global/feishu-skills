@@ -36,6 +36,7 @@ node install.js
 | **feishu-image-ocr** | 通用图片 OCR 文字识别，调用飞书 OCR API，支持中英文混排，纯 Node.js 实现，零额外依赖 |
 | **feishu-search-user** | 按关键词模糊搜索用户、获取当前用户自己的信息、按 `user_id` / `union_id` 精确查询指定用户 |
 | **feishu-sheet** | 飞书电子表格（Sheets）读写工具，支持 info / read / write / append / find / create / export |
+| **feishu-wiki** | 飞书知识库管理，支持知识空间增删查，以及节点增删查/移动/复制 |
 
 ---
 
@@ -195,6 +196,9 @@ feishu-skills/
 ├── feishu-sheet/
 │   ├── SKILL.md
 │   └── sheet.js              # 电子表格读写/查找/创建/导出
+├── feishu-wiki/
+│   ├── SKILL.md
+│   └── wiki.js               # 知识库空间与节点管理
 └── install.js                # 跨平台安装脚本
 ```
 

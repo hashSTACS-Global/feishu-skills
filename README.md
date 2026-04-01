@@ -36,6 +36,7 @@ node install.js
 | **feishu-image-ocr** | Image OCR via Feishu API. Chinese/English, pure Node.js, zero extra deps. |
 | **feishu-search-user** | Search users by keyword, get current user profile, or look up a user by `user_id` / `union_id` |
 | **feishu-sheet** | Read/write Feishu Spreadsheets (Sheets) — info, read, write, append, find, create, export |
+| **feishu-wiki** | Feishu Wiki space and node management — list/get/create spaces; list/get/create/move/copy nodes |
 
 
 ---
@@ -195,6 +196,9 @@ feishu-skills/
 ├── feishu-sheet/
 │   ├── SKILL.md
 │   └── sheet.js          # Spreadsheet read/write/find/create/export
+├── feishu-wiki/
+│   ├── SKILL.md
+│   └── wiki.js           # Wiki space & node management
 └── install.js            # Cross-platform installer
 ```
 

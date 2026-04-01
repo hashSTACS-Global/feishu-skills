@@ -32,6 +32,7 @@ const SKILLS = [
   'feishu-image-ocr',
   'feishu-search-user',
   'feishu-sheet',
+  'feishu-wiki',
 ];
 
 // Files/dirs to exclude when copying
