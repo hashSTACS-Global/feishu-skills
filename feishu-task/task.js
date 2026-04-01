@@ -115,14 +115,20 @@ async function listTasks(args, token) {
 
 async function updateTask(args, token) {
   if (!args.taskId) die({ error: 'missing_param', message: '--task-id 必填' });
-  const body = {};
-  if (args.summary) body.summary = args.summary;
-  if (args.description) body.description = args.description;
-  if (args.due) body.due = { timestamp: toTimestamp(args.due), is_all_day: false };
-  if (args.completed === 'true') body.completed_at = String(Date.now());
+  const task = {};
+  if (args.summary) task.summary = args.summary;
+  if (args.description) task.description = args.description;
+  if (args.due) task.due = { timestamp: toTimestamp(args.due), is_all_day: false };
+  if (args.completed === 'true') task.completed_at = String(Date.now());
+  if (args.completed === 'false') task.completed_at = '0';
+  // Task v2 API requires update_fields to specify which fields to update
+  const update_fields = Object.keys(task);
+  if (update_fields.length === 0) die({ error: 'missing_param', message: '至少指定一个要更新的字段' });
+  const body = { task, update_fields };
   const data = await apiCall('PATCH', `/task/v2/tasks/${args.taskId}`, token, body, { user_id_type: 'open_id' });
   if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
-  out({ task: data.data?.task, reply: '任务已更新' });
+  const reply = args.completed === 'true' ? '任务已完成' : args.completed === 'false' ? '任务已恢复为未完成' : '任务已更新';
+  out({ task: data.data?.task, reply });
 }
 
 async function addTaskMembers(args, token) {
