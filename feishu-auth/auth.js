@@ -187,14 +187,13 @@ function buildSuccessCard() {
   };
 }
 
-async function tryUpdateCardToGreen(openId, cfg) {
-  const pending = readPending(openId);
-  if (!pending?.message_id) return;
-  const messageId = pending.message_id;
-  // Remove message_id from pending (keep rest of pending data intact)
-  const { message_id: _removed, ...rest } = pending;
-  if (Object.keys(rest).length > 0) savePending(openId, rest);
-  else deletePending(openId);
+async function tryUpdateCardToGreen(openId, cfg, messageId) {
+  // If not passed explicitly, fall back to reading from pending file
+  if (!messageId) {
+    const pending = readPending(openId);
+    messageId = pending?.message_id;
+  }
+  if (!messageId) return;
   try {
     const tenantToken = await getTenantAccessToken(cfg.appId, cfg.appSecret);
     const result = await updateFeishuMessage(tenantToken, messageId, buildSuccessCard());
@@ -307,21 +306,24 @@ function saveAuthorizedToken(openId, cfg, data) {
  * Continues polling across multiple rounds until authorized or device_code expires.
  * Never returns polling_timeout to the caller (agent).
  */
-async function pollLoop(openId, cfg, pending, roundMs) {
+async function pollLoop(openId, cfg, pending, roundMs, messageId) {
   while (true) {
-    const result = await pollUntilAuthorized(openId, cfg, pending, roundMs);
+    const result = await pollUntilAuthorized(openId, cfg, pending, roundMs, messageId);
     if (result.status !== 'polling_timeout') return result;
-    // device_code still valid — re-read pending (may have been updated) and continue
+    // device_code still valid — re-read pending only to check expiry
     const currentPending = readPending(openId);
     if (!currentPending || (currentPending.created_at + currentPending.expires_in * 1000) <= Date.now()) {
       return { status: 'expired', message: '授权码已过期' };
     }
     process.stderr.write('[auth] polling_timeout, device_code still valid — continuing poll\n');
-    pending = currentPending;
+    // Only update pending if device_code matches — avoid picking up a concurrent process's device_code
+    if (currentPending.device_code === pending.device_code) {
+      pending = currentPending;
+    }
   }
 }
 
-async function pollUntilAuthorized(openId, cfg, pending, timeoutMs) {
+async function pollUntilAuthorized(openId, cfg, pending, timeoutMs, messageId) {
   const deviceDeadline = pending.created_at + pending.expires_in * 1000;
   const pollDeadline = timeoutMs ? Date.now() + timeoutMs : deviceDeadline;
   const deadline = Math.min(deviceDeadline, pollDeadline);
@@ -334,7 +336,7 @@ async function pollUntilAuthorized(openId, cfg, pending, timeoutMs) {
 
     if (!error && json.access_token) {
       const tokenData = saveAuthorizedToken(openId, cfg, json);
-      await tryUpdateCardToGreen(openId, cfg);
+      await tryUpdateCardToGreen(openId, cfg, messageId);
       deletePending(openId);
       return {
         status: 'authorized',
@@ -427,14 +429,14 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
     const json = await tryExchange(existingPending.device_code, cfg);
     if (!json.error && json.access_token) {
       saveAuthorizedToken(openId, cfg, json);
-      await tryUpdateCardToGreen(openId, cfg);
+      await tryUpdateCardToGreen(openId, cfg, existingPending.message_id);
       deletePending(openId);
       out({ status: 'authorized', message: '授权成功！' });
       return;
     }
     process.stderr.write(`[auth-and-poll] existing pending not yet authorized (${json.error}), will re-use it\n`);
     if (json.error === 'authorization_pending') {
-      const result = await pollLoop(openId, cfg, existingPending, timeoutMs);
+      const result = await pollLoop(openId, cfg, existingPending, timeoutMs, existingPending.message_id);
       out(result);
       if (result.status !== 'authorized') process.exit(1);
       return;
@@ -445,8 +447,10 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
   // Init: get device code and auth URL with merged scopes
   const pending = await initSilent(openId, cfg, mergedScope);
 
-  // Send auth card and save message_id for green card update later
+  // Send auth card — capture message_id as local variable (NOT saved to pending file,
+  // to avoid concurrent processes overwriting each other's message_id)
   let cardSent = false;
+  let sentMessageId;
   try {
     const tenantToken = await getTenantAccessToken(cfg.appId, cfg.appSecret);
     const card = buildAuthCard(pending.verification_uri);
@@ -456,13 +460,14 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
     if (sendResult.code !== 0) {
       throw new Error(`IM API error: code=${sendResult.code} msg=${sendResult.msg}`);
     }
-    // Save message_id so we can update card to green on authorization
-    const messageId = sendResult.data?.message_id;
-    if (messageId) {
+    sentMessageId = sendResult.data?.message_id;
+    // Also persist message_id to pending file for restart-recovery scenario
+    // (if this process is killed and restarted, the new process can still find the message_id)
+    if (sentMessageId) {
       const currentPending = readPending(openId) || {};
-      savePending(openId, { ...currentPending, message_id: messageId });
+      savePending(openId, { ...currentPending, message_id: sentMessageId });
     }
-    process.stderr.write(`[auth-and-poll] auth card sent, message_id=${messageId}\n`);
+    process.stderr.write(`[auth-and-poll] auth card sent, message_id=${sentMessageId}\n`);
     cardSent = true;
   } catch (err) {
     process.stderr.write(`[auth-and-poll] card failed: ${err.message}, trying text...\n`);
@@ -492,7 +497,7 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
   }
 
   // Internal poll loop — never returns polling_timeout to agent
-  const result = await pollLoop(openId, cfg, pending, timeoutMs);
+  const result = await pollLoop(openId, cfg, pending, timeoutMs, sentMessageId);
   out(result);
   if (result.status !== 'authorized') process.exit(1);
 }
@@ -501,6 +506,14 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
  * Like init() but returns pending data without outputting JSON.
  */
 async function initSilent(openId, cfg, scopeStr) {
+  // Race-condition guard: if another process just created a pending (<10s ago), re-use it
+  // to avoid sending two auth cards with different device codes simultaneously.
+  const existingRecent = readPending(openId);
+  if (existingRecent && existingRecent.device_code && Date.now() - existingRecent.created_at < 10000) {
+    process.stderr.write('[auth] recent pending exists (<10s), re-using to prevent duplicate auth card\n');
+    return existingRecent;
+  }
+
   const mergedScope = scopeStr || buildMergedScopes(null, null);
   const body = new URLSearchParams({ client_id: cfg.appId, scope: mergedScope });
   const res = await fetch(
