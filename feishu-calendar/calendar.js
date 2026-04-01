@@ -38,7 +38,7 @@ function parseArgs() {
     userIds: null, names: null, chatId: null,
     startMin: null, startMax: null,
     isAllDay: false, recurrence: null, repeat: null, reminder: null,
-    needAttendee: false,
+    needAttendee: false, showCancelled: false,
   };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -65,6 +65,7 @@ function parseArgs() {
       case '--recurrence':   r.recurrence   = argv[++i]; break;
       case '--names':        r.names        = argv[++i]; break;
       case '--chat-id':      r.chatId       = argv[++i]; break;
+      case '--show-cancelled': r.showCancelled = true; break;
     }
   }
   return r;
@@ -323,7 +324,7 @@ async function listEvents(args, token) {
   const events = (data.data?.items || []).map(enrichEventTimes);
 
   // Build formatted reply so LLM can display directly without interpretation
-  const reply = formatEventList(events);
+  const reply = formatEventList(events, { showCancelled: args.showCancelled });
   out({ events, has_more: data.data?.has_more, page_token: data.data?.page_token, reply });
 }
 
@@ -334,11 +335,32 @@ async function listEvents(args, token) {
  * Covers: meetings (with video link), regular events, all-day events,
  * recurring events, cancelled, tentative, private events.
  */
-function formatEventList(events) {
+function formatEventList(events, { showCancelled = false } = {}) {
   if (!events || events.length === 0) return '当前时间段内没有日程。';
 
+  // Sort: upcoming first (by start_time ascending), past events after, cancelled last
+  const now = Math.floor(Date.now() / 1000);
+  const sorted = [...events].sort((a, b) => {
+    const aCanc = a.status === 'cancelled' ? 1 : 0;
+    const bCanc = b.status === 'cancelled' ? 1 : 0;
+    if (aCanc !== bCanc) return aCanc - bCanc; // cancelled last
+
+    const aTs = parseInt(a.start_time?.timestamp || '0', 10);
+    const bTs = parseInt(b.start_time?.timestamp || '0', 10);
+    const aFuture = aTs >= now ? 0 : 1;
+    const bFuture = bTs >= now ? 0 : 1;
+    if (aFuture !== bFuture) return aFuture - bFuture; // upcoming before past
+
+    return aTs - bTs; // ascending by start time
+  });
+
+  // Separate active vs cancelled
+  const active = sorted.filter(ev => ev.status !== 'cancelled');
+  const cancelled = sorted.filter(ev => ev.status === 'cancelled');
+  const toFormat = showCancelled ? sorted : active;
+
   const lines = [];
-  for (const ev of events) {
+  for (const ev of toFormat) {
     const summary = ev.summary || '未命名日程';
     const startStr = ev.start_time_str || '';
     const endStr = ev.end_time_str || '';
@@ -416,7 +438,18 @@ function formatEventList(events) {
     lines.push(entry);
   }
 
-  return lines.join('\n\n');
+  let result = lines.join('\n\n');
+
+  // Append cancelled count hint (only when not showing cancelled)
+  if (!showCancelled && cancelled.length > 0) {
+    result += `\n\n---\n另有 ${cancelled.length} 个已取消的日程未显示，如需查看请回复"显示已取消日程"。`;
+  }
+
+  if (active.length === 0 && cancelled.length > 0 && !showCancelled) {
+    result = `当前时间段内没有有效日程。\n\n另有 ${cancelled.length} 个已取消的日程，如需查看请回复"显示已取消日程"。`;
+  }
+
+  return result;
 }
 
 async function getEvent(args, token) {
