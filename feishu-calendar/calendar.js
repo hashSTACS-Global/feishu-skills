@@ -225,22 +225,32 @@ async function createEvent(args, token) {
   const data = await apiCall('POST', `/calendar/v4/calendars/${calId}/events`, token, body, query);
   if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
 
-  const event = data.data?.event;
+  let event = data.data?.event;
   const eventId = event?.event_id;
 
-  // GET event to retrieve meeting URL (vchat.meeting_url may not be in create response)
+  // GET event to retrieve meeting URL — create response often lacks vchat details,
+  // Feishu needs a moment to provision the video conference.
   let meetingUrl = event?.vchat?.meeting_url;
   if (!meetingUrl && eventId) {
+    await new Promise(r => setTimeout(r, 1000));
     const getData = await apiCall('GET', `/calendar/v4/calendars/${calId}/events/${eventId}`, token, null, { user_id_type: 'open_id' });
-    if (getData.code === 0) {
-      meetingUrl = getData.data?.event?.vchat?.meeting_url;
+    if (getData.code === 0 && getData.data?.event) {
+      meetingUrl = getData.data.event.vchat?.meeting_url;
+      event = getData.data.event;
     }
   }
 
+  // Strip app_link from event output — it's an internal deep link that doesn't open in browser
+  if (event?.app_link) delete event.app_link;
+
+  const vchatTip = meetingUrl
+    ? `\n视频会议链接：${meetingUrl}`
+    : '\n⚠️ 视频会议链接尚未生成，请稍后到飞书日历中查看。';
+
   out({
     event,
-    meeting_url: meetingUrl,
-    reply: `日程「${args.summary}」已创建${rrule ? `（重复：${args.repeat || args.recurrence}）` : ''}${meetingUrl ? `，会议链接：${meetingUrl}` : ''}`,
+    meeting_url: meetingUrl || null,
+    reply: `日程「${args.summary}」已创建${rrule ? `（重复：${args.repeat || args.recurrence}）` : ''}${vchatTip}`,
   });
 }
 
@@ -365,8 +375,6 @@ async function checkFreebusy(args, token, cfg) {
       time_min: timeMin,
       time_max: timeMax,
       user_id: uid,
-      include_external_calendar: true,
-      only_busy: true,
     };
     const data = await apiCall('POST', '/calendar/v4/freebusy/list', token, body, { user_id_type: 'open_id' });
     if (data.code !== 0) throw new Error(`查询 ${uid} 忙闲失败: code=${data.code} msg=${data.msg}`);
