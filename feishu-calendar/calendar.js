@@ -330,6 +330,9 @@ async function listEvents(args, token) {
 /**
  * Format event list into a human-readable reply string.
  * LLM should output this directly without modification.
+ *
+ * Covers: meetings (with video link), regular events, all-day events,
+ * recurring events, cancelled, tentative, private events.
  */
 function formatEventList(events) {
   if (!events || events.length === 0) return '当前时间段内没有日程。';
@@ -339,31 +342,76 @@ function formatEventList(events) {
     const summary = ev.summary || '未命名日程';
     const startStr = ev.start_time_str || '';
     const endStr = ev.end_time_str || '';
-    const status = ev.status || '';
+    const status = ev.status || 'confirmed';
     const organizer = ev.event_organizer?.display_name || '';
     const meetingUrl = ev.vchat?.meeting_url || '';
+    const vcType = ev.vchat?.vc_type || '';
     const description = ev.description || '';
     const location = ev.location?.name || '';
     const attendeeCount = ev.attendees?.length;
+    const freeBusy = ev.free_busy_status || '';
+    const visibility = ev.visibility || 'default';
+    const isAllDay = !!ev.start_time?.date;
+    const isRecurring = !!ev.recurrence;
 
-    // Status badge
+    // Badge: determine event type based on status + vchat config
+    // Feishu has no event_type field — type is implicit from vchat.vc_type:
+    //   vc = Feishu video meeting
+    //   third_party = external meeting link
+    //   lark_live = Feishu live stream (read-only)
+    //   no_meeting / empty = no video conference
     let badge = '';
     if (status === 'cancelled') badge = '❌ 已取消';
+    else if (status === 'tentative') badge = '❓ 待确认';
+    else if (vcType === 'lark_live') badge = '📺 直播';
     else if (meetingUrl) badge = '📹 会议';
+    else if (isAllDay) badge = '🗓️ 全天';
     else badge = '📅 日程';
 
-    // Time range (extract HH:MM only for same-day display)
-    const startTime = startStr.split(' ')[1] || startStr;
-    const endTime = endStr.split(' ')[1] || endStr;
-    const timeRange = startTime && endTime ? `${startTime} - ${endTime}` : startStr;
+    // Time display
+    let timeDisplay = '';
+    if (isAllDay) {
+      const startDate = ev.start_time?.date || startStr;
+      const endDate = ev.end_time?.date || endStr;
+      timeDisplay = startDate === endDate ? `全天（${startDate}）` : `${startDate} ~ ${endDate}`;
+    } else {
+      const startTime = startStr.split(' ')[1] || startStr;
+      const endTime = endStr.split(' ')[1] || endStr;
+      // If start and end are on different dates, show full date+time
+      const startDate = startStr.split(' ')[0] || '';
+      const endDate = endStr.split(' ')[0] || '';
+      if (startDate && endDate && startDate !== endDate) {
+        timeDisplay = `${startStr} ~ ${endStr}`;
+      } else {
+        timeDisplay = startTime && endTime ? `${startTime} - ${endTime}` : startStr;
+      }
+    }
 
-    let entry = `${badge}  **${summary}**\n    时间：${timeRange}`;
+    let entry = `${badge}  **${summary}**\n    时间：${timeDisplay}`;
+
+    // Tags line (compact metadata)
+    const tags = [];
+    if (isRecurring) tags.push('🔁 重复');
+    if (freeBusy === 'free') tags.push('空闲');
+    if (visibility === 'private') tags.push('🔒 私密');
+    if (tags.length > 0) entry += `\n    标签：${tags.join(' · ')}`;
+
     if (organizer) entry += `\n    组织者：${organizer}`;
     if (location) entry += `\n    地点：${location}`;
-    if (meetingUrl && status !== 'cancelled') entry += `\n    会议链接：${meetingUrl}`;
+
+    // Meeting / live link (only for active events)
+    if (meetingUrl && status !== 'cancelled') {
+      const vcLabels = { third_party: '三方会议链接', lark_live: '直播链接', vc: '会议链接' };
+      const vcLabel = vcLabels[vcType] || '会议链接';
+      entry += `\n    ${vcLabel}：${meetingUrl}`;
+    }
+
     if (description) entry += `\n    备注：${description}`;
     if (attendeeCount) entry += `\n    参与者：${attendeeCount} 人`;
+
+    // Status notes
     if (status === 'cancelled') entry += `\n    ⚠️ 此日程已被取消`;
+    if (status === 'tentative') entry += `\n    ⏳ 此日程尚未确认`;
 
     lines.push(entry);
   }
