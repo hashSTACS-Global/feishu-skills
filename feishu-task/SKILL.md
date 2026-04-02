@@ -46,13 +46,22 @@ node ./task.js --open-id "ou_xxx" --action create_subtask --task-id "ID" --summa
 node ./task.js --open-id "ou_xxx" --action list_subtasks --task-id "ID"
 ```
 
-## 必须确认的参数
+## 创建任务的必填参数（create_task）
 
-| 参数 | 何时询问 |
-|---|---|
-| `--summary` | 未说明任务标题 |
-| `--due` | 截止时间含糊 |
-| `--members` | 提到分配但未说明给谁 |
+执行 `create_task` 前，以下四项必须全部已知。**缺少任意一项必须先追问用户，不得跳过或填占位符。**
+
+多项缺失时**合并成一条消息同时追问**，不要分多轮。
+
+| 参数 | 说明 | 缺失时追问 |
+|---|---|---|
+| `--summary` | 任务标题 | "请问这个任务的标题是什么？" |
+| `--members` | 负责人（assignee）open_id | "请问这个任务由谁负责？" |
+| `--followers` | 关注人 open_id，可多个逗号分隔 | "请问谁需要关注这个任务的进展？" |
+| `--due` | 截止时间（ISO8601，如 `2026-04-10T17:00:00+08:00`） | "请问截止时间是什么时候？" |
+
+**处理规则**：
+- 用户提供姓名而非 open_id → 先执行 `node ../feishu-search-user/search-user.js --open-id "SENDER_OPEN_ID" --action search --query "姓名"` 取得 open_id 再创建
+- 截止时间支持自然语言（"明天下午5点"），转为 `YYYY-MM-DDTHH:mm:ss+08:00` 格式传入
 
 ## 授权
 
