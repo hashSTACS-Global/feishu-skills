@@ -189,7 +189,8 @@ async function nodeCreate(args, accessToken) {
   if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
 
   const node = data.data?.node;
-  out({ node, reply: `已创建节点「${node?.title ?? args.title ?? '（无标题）'}」（node_token=${node?.node_token}）` });
+  const wiki_url = node?.node_token ? `https://www.feishu.cn/wiki/${node.node_token}` : null;
+  out({ node, url: wiki_url, reply: `已创建节点「${node?.title ?? args.title ?? '（无标题）'}」${wiki_url ? `：${wiki_url}` : `（node_token=${node?.node_token}）`}` });
 }
 
 async function nodeMove(args, accessToken) {
@@ -208,7 +209,8 @@ async function nodeMove(args, accessToken) {
   if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
 
   const node = data.data?.node;
-  out({ node, reply: `已移动节点 ${args.nodeToken} 到 ${args.targetParentToken ?? '根目录'}` });
+  const wiki_url = node?.node_token ? `https://www.feishu.cn/wiki/${node.node_token}` : null;
+  out({ node, url: wiki_url, reply: `已移动节点 ${args.nodeToken} 到 ${args.targetParentToken ?? '根目录'}${wiki_url ? `，链接：${wiki_url}` : ''}` });
 }
 
 async function nodeCopy(args, accessToken) {

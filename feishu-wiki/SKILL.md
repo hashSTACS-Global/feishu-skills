@@ -75,6 +75,8 @@ node ./wiki.js --open-id "ou_xxx" --action node_create \
   --origin-node-token "ORIGIN_TOKEN"
 ```
 
+返回 `url` 字段为文档链接（格式 `https://www.feishu.cn/wiki/{node_token}`），`reply` 中直接包含链接。
+
 ### 移动节点
 
 ```bash
@@ -86,6 +88,8 @@ node ./wiki.js --open-id "ou_xxx" --action node_move \
 node ./wiki.js --open-id "ou_xxx" --action node_move \
   --space-id "SPACE_ID" --node-token "NODE_TOKEN"
 ```
+
+返回 `url` 字段为移动后节点的链接（格式 `https://www.feishu.cn/wiki/{node_token}`）。
 
 ### 复制节点
 
