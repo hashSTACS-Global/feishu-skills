@@ -1,6 +1,8 @@
 'use strict';
 /**
- * feishu-im-read: Read Feishu IM messages using user OAuth token.
+ * feishu-im-read: Read Feishu IM messages.
+ * - get_messages:    uses tenant_access_token (app-level, reads group/p2p history)
+ * - search_messages: uses user_access_token  (user-level, searches across chats)
  *
  * Usage:
  *   node im-read.js --action <action> --open-id <open_id> [options]
@@ -15,6 +17,9 @@
 const path = require('path');
 const { getConfig, getValidToken } = require(
   path.join(__dirname, '../feishu-auth/token-utils.js'),
+);
+const { getTenantAccessToken } = require(
+  path.join(__dirname, '../feishu-auth/send-card.js'),
 );
 
 // ---------------------------------------------------------------------------
@@ -259,23 +264,25 @@ async function main() {
     die({ error: 'config_error', message: err.message });
   }
 
-  let accessToken;
-  try { accessToken = await getValidToken(args.openId, cfg.appId, cfg.appSecret); } catch (err) {
-    die({ error: 'token_error', message: err.message });
-  }
-  if (!accessToken) {
-    die({
-      error: 'auth_required',
-      message: '用户未完成飞书授权或授权已过期。请调用 feishu-auth skill 完成授权后重试。\n' +
-        `用户 open_id: ${args.openId}`,
-    });
-  }
-
   try {
-    switch (args.action) {
-      case 'get_messages':    await getMessages(args, accessToken); break;
-      case 'search_messages': await searchMessages(args, accessToken); break;
-      default: die({ error: 'invalid_action', message: `未知操作: ${args.action}` });
+    if (args.action === 'get_messages') {
+      // GET /im/v1/messages requires tenant_access_token (not user token)
+      // See: https://open.feishu.cn/document/server-docs/im-v1/message/list
+      const tenantToken = await getTenantAccessToken(cfg.appId, cfg.appSecret);
+      await getMessages(args, tenantToken);
+    } else if (args.action === 'search_messages') {
+      // POST /search/v2/message requires user_access_token
+      const accessToken = await getValidToken(args.openId, cfg.appId, cfg.appSecret);
+      if (!accessToken) {
+        die({
+          error: 'auth_required',
+          message: '用户未完成飞书授权或授权已过期。请调用 feishu-auth skill 完成授权后重试。\n' +
+            `用户 open_id: ${args.openId}`,
+        });
+      }
+      await searchMessages(args, accessToken);
+    } else {
+      die({ error: 'invalid_action', message: `未知操作: ${args.action}` });
     }
   } catch (err) {
     const msg = err.message || '';
@@ -289,8 +296,9 @@ async function main() {
       die({
         error: 'permission_required',
         message: msg,
-        required_scopes: ['im:message', 'im:message:readonly', 'im:chat:read', 'search:message'],
-        reply: '⚠️ **权限不足，需要重新授权以获取所需权限。**',
+        required_scopes: ['im:message', 'im:message:readonly', 'im:message.group_msg'],
+        auth_type: 'tenant',
+        reply: '⚠️ **读取群消息需要应用级权限（需要管理员操作）**\n\n需要开通的权限：`im:message` 和 `im:message.group_msg`',
       });
     }
     die({ error: 'api_error', message: msg });
