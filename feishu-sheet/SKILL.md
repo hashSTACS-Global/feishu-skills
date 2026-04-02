@@ -75,7 +75,7 @@ node ./sheet.js --open-id "ou_xxx" --action create --title "员工花名册" \
 ```bash
 node ./sheet.js --open-id "ou_xxx" --action export --url "https://..." --file-extension xlsx
 node ./sheet.js --open-id "ou_xxx" --action export --url "https://..." \
-  --file-extension csv --sheet-id "0b4f38" --output-path "/tmp/data.csv"
+  --file-extension csv --sheet-id "0b4f38" --output-path "data.csv"
 ```
 
 CSV 导出时 `--sheet-id` 必填（一次只能导出一个工作表）。

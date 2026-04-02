@@ -59,7 +59,7 @@ node ./drive.js --open-id "SENDER_OPEN_ID" --action upload --file-base64 "BASE64
 保存到本地：
 
 ```bash
-node ./drive.js --open-id "SENDER_OPEN_ID" --action download --file-token "文件TOKEN" --output-path "/tmp/a.docx"
+node ./drive.js --open-id "SENDER_OPEN_ID" --action download --file-token "文件TOKEN" --output-path "a.docx"
 ```
 
 不指定路径（返回 base64）：

@@ -18,7 +18,7 @@
  *   node sheet.js --open-id ou_xxx --action append --url "https://..." --values '[["row1","row2"]]'
  *   node sheet.js --open-id ou_xxx --action find --url "https://..." --sheet-id ID --find "keyword"
  *   node sheet.js --open-id ou_xxx --action create --title "标题" [--headers '["A","B"]'] [--data '[["1","2"]]']
- *   node sheet.js --open-id ou_xxx --action export --url "https://..." --file-extension xlsx [--output-path /tmp/out.xlsx]
+ *   node sheet.js --open-id ou_xxx --action export --url "https://..." --file-extension xlsx [--output-path out.xlsx]
  *
  * Output: single-line JSON
  *   Success: action-specific fields + "reply" for user-facing text
