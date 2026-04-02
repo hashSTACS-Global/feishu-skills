@@ -28,6 +28,7 @@ node install.js
 | **feishu-search-doc** | 搜索云文档、知识库空间/节点，或在云盘目录下按名称筛选 |
 | **feishu-update-doc** | 更新飞书云文档（追加或覆盖内容块） |
 | **feishu-im-read** | 读取飞书 IM 聊天记录 |
+| **feishu-chat** | 搜索群组、获取群详情、列出群成员 |
 | **feishu-calendar** | 创建 / 查询 / 更新日历事件 |
 | **feishu-task** | 创建 / 查询 / 更新任务和任务清单 |
 | **feishu-bitable** | 多维表格应用、数据表、字段、记录、视图的完整增删改查 |
@@ -77,6 +78,8 @@ node install.js
       "feishu_wiki_*",
       "feishu_drive_*",
       "feishu_search_doc_wiki",
+      "feishu_chat",
+      "feishu_chat_members",
       "feishu_im_*",
       "feishu_bitable_*",
       "feishu_calendar_*",
@@ -171,6 +174,9 @@ feishu-skills/
 ├── feishu-im-read/
 │   ├── SKILL.md
 │   └── im-read.js
+├── feishu-chat/
+│   ├── SKILL.md
+│   └── chat.js
 ├── feishu-calendar/
 │   ├── SKILL.md
 │   └── calendar.js

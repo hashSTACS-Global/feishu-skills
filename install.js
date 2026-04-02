@@ -24,6 +24,7 @@ const SKILLS = [
   'feishu-search-doc',
   'feishu-update-doc',
   'feishu-im-read',
+  'feishu-chat',
   'feishu-calendar',
   'feishu-task',
   'feishu-bitable',

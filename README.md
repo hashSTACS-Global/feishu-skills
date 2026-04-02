@@ -28,6 +28,7 @@ node install.js
 | **feishu-search-doc** | Search cloud docs, wiki spaces/nodes, and filter drive folder entries by name |
 | **feishu-update-doc** | Update Feishu Docs (append or overwrite blocks) |
 | **feishu-im-read** | Read Feishu IM chat history |
+| **feishu-chat** | Search group chats, get chat details, list members |
 | **feishu-calendar** | Create / query / update calendar events |
 | **feishu-task** | Create / query / update tasks and task lists |
 | **feishu-bitable** | Full CRUD on Bitable apps, tables, fields, records, and views |
@@ -78,6 +79,8 @@ Your `~/.openclaw/openclaw.json` must have a `channels.feishu` section with your
       "feishu_wiki_*",
       "feishu_drive_*",
       "feishu_search_doc_wiki",
+      "feishu_chat",
+      "feishu_chat_members",
       "feishu_im_*",
       "feishu_bitable_*",
       "feishu_calendar_*",
@@ -171,6 +174,9 @@ feishu-skills/
 ├── feishu-im-read/
 │   ├── SKILL.md
 │   └── im-read.js
+├── feishu-chat/
+│   ├── SKILL.md
+│   └── chat.js
 ├── feishu-calendar/
 │   ├── SKILL.md
 │   └── calendar.js
