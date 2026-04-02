@@ -353,12 +353,13 @@ async function uploadAll(accessToken, fileName, buffer, folderToken) {
   if (data.code !== 0) {
     throw new Error(`Upload all failed: code=${data.code} msg=${data.msg}`);
   }
-  const file = data.data?.file || {};
+  const d = data.data || {};
+  const fileToken = d.file_token || d.file?.token || d.file?.file_token || null;
   return {
-    file_token: file.token || file.file_token || null,
-    file_name: file.name || fileName,
+    file_token: fileToken,
+    file_name: d.file?.name || fileName,
     size: buffer.length,
-    data: data.data || {},
+    data: d,
   };
 }
 
@@ -403,11 +404,12 @@ async function uploadFinish(accessToken, uploadId, blockNum) {
   if (data.code !== 0) {
     throw new Error(`Upload finish failed: code=${data.code} msg=${data.msg}`);
   }
-  const file = data.data?.file || {};
+  const d = data.data || {};
+  const fileToken = d.file_token || d.file?.token || d.file?.file_token || null;
   return {
-    file_token: file.token || file.file_token || null,
-    file_name: file.name || null,
-    data: data.data || {},
+    file_token: fileToken,
+    file_name: d.file?.name || null,
+    data: d,
   };
 }
 
