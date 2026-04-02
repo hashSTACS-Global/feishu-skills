@@ -10,15 +10,19 @@ inline: true
 
 直接用 `exec` 执行，不要检查文件或环境。
 
-## 获取会话消息
+## 获取会话消息（应用级权限，无需用户授权）
+
+使用 tenant_access_token，机器人必须在群组中。
 
 ```bash
 node ./im-read.js --action "get_messages" --open-id "SENDER_OPEN_ID" --chat-id "oc_xxx"
 ```
 
-可选：`--thread-id "omt_xxx"` `--target-open-id "ou_xxx"` `--relative-time "today"` `--start-time "ISO8601"` `--end-time "ISO8601"` `--sort-rule "create_time_asc"` `--page-size 20` `--page-token "xxx"`
+可选：`--thread-id "omt_xxx"` `--relative-time "today"` `--start-time "ISO8601"` `--end-time "ISO8601"` `--sort-rule "create_time_asc"` `--page-size 20` `--page-token "xxx"`
 
-## 搜索消息
+## 搜索消息（需要用户授权）
+
+使用 user_access_token。
 
 ```bash
 node ./im-read.js --action "search_messages" --open-id "SENDER_OPEN_ID" --query "关键词"
