@@ -10,7 +10,7 @@
 
 const path = require('path');
 const { getConfig, getValidToken } = require(
-  path.join(__dirname, '../feishu-auth/token-utils.js'),
+    path.join(__dirname, '../feishu-auth/token-utils.js'),
 );
 
 const CHAT_SECURITY_HEADER = { 'X-Chat-Custom-Header': 'enable_chat_list_security_check' };
@@ -75,7 +75,7 @@ async function apiCall(method, urlPath, token, { query, headers } = {}) {
   let url = `https://open.feishu.cn/open-apis${urlPath}`;
   if (query && Object.keys(query).length > 0) {
     const qs = new URLSearchParams(
-      Object.fromEntries(Object.entries(query).map(([k, v]) => [k, String(v)])),
+        Object.fromEntries(Object.entries(query).map(([k, v]) => [k, String(v)])),
     ).toString();
     url += (url.includes('?') ? '&' : '?') + qs;
   }
@@ -105,6 +105,12 @@ function isBotMember(m) {
   return false;
 }
 
+function throwApiError(label, data) {
+  const err = new Error(`${label}: code=${data.code} msg=${data.msg}`);
+  err.apiData = data;
+  throw err;
+}
+
 async function actionSearch(args, token) {
   if (!args.query || !args.query.trim()) {
     die({ error: 'missing_param', message: '--query 参数必填' });
@@ -118,7 +124,7 @@ async function actionSearch(args, token) {
   });
   const data = await apiCall('GET', '/im/v1/chats/search', token, { query });
   if (data.code !== 0) {
-    throw new Error(`Chat search failed: code=${data.code} msg=${data.msg}`);
+    throwApiError('Chat search failed', data);
   }
   const items = data.data?.items || [];
   out({
@@ -140,7 +146,7 @@ async function actionGet(args, token) {
     headers: CHAT_SECURITY_HEADER,
   });
   if (data.code !== 0) {
-    throw new Error(`Get chat failed: code=${data.code} msg=${data.msg}`);
+    throwApiError('Get chat failed', data);
   }
   const chat = data.data || {};
   out({
@@ -161,21 +167,21 @@ async function actionListMembers(args, token) {
     member_id_type: args.userIdType,
   });
   const data = await apiCall(
-    'GET',
-    `/im/v1/chats/${encodeURIComponent(args.chatId)}/members`,
-    token,
-    { query, headers: CHAT_SECURITY_HEADER },
+      'GET',
+      `/im/v1/chats/${encodeURIComponent(args.chatId)}/members`,
+      token,
+      { query, headers: CHAT_SECURITY_HEADER },
   );
   if (data.code !== 0) {
-    throw new Error(`List members failed: code=${data.code} msg=${data.msg}`);
+    throwApiError('List members failed', data);
   }
   const raw = data.data?.items || [];
   const items = raw.filter(m => !isBotMember(m));
   const botFiltered = raw.length - items.length;
   const reply =
-    botFiltered > 0
-      ? `本页共 ${items.length} 名成员（已排除机器人 ${botFiltered} 个）。`
-      : `本页共 ${items.length} 名成员。`;
+      botFiltered > 0
+          ? `本页共 ${items.length} 名成员（已排除机器人 ${botFiltered} 个）。`
+          : `本页共 ${items.length} 名成员。`;
   out({
     action: 'list_members',
     items,
@@ -189,7 +195,7 @@ async function actionListMembers(args, token) {
 
 function requiredScopesForAction(action) {
   if (action === 'list_members') {
-    return ['im:chat:readonly', 'im:chat.member:readonly'];
+    return ['im:chat:readonly', 'im:chat.members:read'];
   }
   return ['im:chat:readonly'];
 }
@@ -217,9 +223,10 @@ async function main() {
   if (!accessToken) {
     die({
       error: 'auth_required',
+      required_scopes: requiredScopesForAction(args.action),
       message:
-        '用户未完成飞书授权或授权已过期。请调用 feishu-auth skill 完成授权后重试。\n' +
-        `用户 open_id: ${args.openId}`,
+          '用户未完成飞书授权或授权已过期。请调用 feishu-auth skill 完成授权后重试。\n' +
+          `用户 open_id: ${args.openId}`,
     });
   }
 
@@ -249,6 +256,17 @@ async function main() {
       die({ error: 'rate_limited', message: msg || '请求频率超限，请稍后重试' });
     }
     if (msg.includes('99991672') || msg.includes('99991679') || /permission|scope|not support|tenant/i.test(msg)) {
+      const apiData = err.apiData || {};
+      const isTenant = apiData.auth_type === 'tenant'
+          || (apiData.data && apiData.data.auth_type === 'tenant');
+      if (isTenant) {
+        die({
+          error: 'permission_required',
+          auth_type: 'tenant',
+          message: msg,
+          reply: `⚠️ **应用权限不足，需要管理员在飞书开发者后台为应用开通以下权限：** ${requiredScopesForAction(args.action).join('、')}`,
+        });
+      }
       die({
         error: 'permission_required',
         message: msg,

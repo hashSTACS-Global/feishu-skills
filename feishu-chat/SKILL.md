@@ -50,7 +50,7 @@ node ./chat.js --open-id "SENDER_OPEN_ID" --action list_members --chat-id "oc_xx
 |--------|--------|
 | `search` | `im:chat:readonly` |
 | `get` | `im:chat:readonly` |
-| `list_members` | `im:chat:readonly`、`im:chat.member:readonly` |
+| `list_members` | `im:chat:readonly`、`im:chat.members:read` |
 
 ## 与其他技能的编排
 
@@ -63,7 +63,7 @@ node ./chat.js --open-id "SENDER_OPEN_ID" --action list_members --chat-id "oc_xx
 
 ## 授权
 
-若返回 `{"error":"auth_required"}` 或 `{"error":"permission_required"}`，**不要询问用户是否授权，直接立即执行：**
+若返回 `{"error":"auth_required"}` 或 `{"error":"permission_required"}`（且**不含** `"auth_type":"tenant"`），**不要询问用户是否授权，直接立即执行：**
 
 - 若返回 JSON 中含 `required_scopes`，将其用空格拼接后传入 `--scope`：
 
@@ -77,4 +77,4 @@ node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id
 
 ## 权限不足时（应用级）
 
-若返回中含 `"auth_type":"tenant"`，将 `reply` 原样发给用户。
+若返回中含 `"auth_type":"tenant"`，**不要触发用户重新授权**（重新授权无法解决应用级权限问题），将 `reply` 原样发给用户。
