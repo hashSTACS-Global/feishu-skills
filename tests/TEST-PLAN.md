@@ -4,6 +4,61 @@
 
 测试框架直接扩展自 `EnClaws/test/feishu-simulator`，无需额外搬运代码。
 
+## feishu-simulator 端到端原理
+
+feishu-simulator 之所以能做到端到端测试，核心在于它**以真实飞书用户的身份**直接调用飞书 Open API 与机器人对话，走的是和人肉 @机器人 完全一样的消息链路。
+
+### 信息流
+
+```
+  feishu-simulator (测试脚本)                飞书云                    EnClaws (本地)
+  ─────────────────────────             ──────────                ──────────────
+          │                                  │                         │
+  1. OAuth Device Flow 获取 user_token       │                         │
+          │                                  │                         │
+  2. POST /im/v1/messages ──────────────→    │                         │
+     (以测试用户身份，发消息给 bot 的 open_id)  │                         │
+          │                                  │                         │
+          │                           3. 飞书服务器收到消息              │
+          │                              路由到 bot                    │
+          │                                  │                         │
+          │                           4. 通过长连接(WSClient)推送 ───→  │
+          │                                  │                         │
+          │                                  │                  5. handleMessageEvent()
+          │                                  │                     → handleFeishuMessage()
+          │                                  │                     → dispatchToAgent()
+          │                                  │                     → LLM 处理意图
+          │                                  │                     → 选择并执行 Skill
+          │                                  │                     → Skill 调用飞书 API
+          │                                  │                         │
+          │                           6. bot 回复消息  ←────────────── │
+          │                                  │                         │
+  7. GET /im/v1/messages ───────────────→    │                         │
+     (轮询 P2P 聊天，筛选 sender_type=app     │                         │
+      且 parent_id 匹配的回复)                │                         │
+          │                                  │                         │
+  8. 提取回复内容 ←──────────────────────     │                         │
+     (支持 text/post/interactive/file/image)  │                         │
+          │                                  │                         │
+  9. 执行断言 + 生成 CSV 报告                 │                         │
+```
+
+### 关键设计点
+
+1. **用户身份模拟**：通过 OAuth Device Flow 获取真实 user_access_token，以用户身份发送私聊消息给 bot（`POST /im/v1/messages?receive_id_type=open_id`），飞书自动创建/复用 P2P 聊天
+2. **回复匹配**：通过 `parent_id === userMsgId` 精确匹配 bot 对特定消息的回复，不会错配其他对话
+3. **卡片流式等待**：如果 bot 回复的是 CardKit v2 卡片且 `streamingMode=true`，会持续轮询直到卡片渲染完成再断言
+4. **消息类型适配**：自动解析 text（纯文本）、post（富文本）、interactive（卡片 summary + 元素文本）、file/image/media（提取 file_key/image_key/fileName）
+5. **token 管理**：access_token 缓存在 `.token-cache/`，自动刷新（refresh_token 7 天有效），免去重复授权
+
+### 为什么不用 Webhook / WebSocket 方案
+
+| 方案 | 问题 |
+|------|------|
+| 模拟飞书 Webhook POST | EnClaws 使用长连接模式，webhook 未实现；且需要内网穿透打通本地与飞书 |
+| WebSocket webchat 通道 | provider="webchat" 不注入 `FEISHU_APP_ID`/`FEISHU_APP_SECRET`/`open_id` 等飞书上下文，skill 脚本无法执行 |
+| **飞书 API 直接收发（当前方案）** | 不依赖连接模式，不需要内网穿透，走真实飞书消息链路 |
+
 ## 三层测试设计
 
 | 层级 | 说明 | 依赖 | 运行命令 |
