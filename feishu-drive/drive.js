@@ -106,6 +106,28 @@ function die(obj) {
 }
 
 // ---------------------------------------------------------------------------
+// URL builder: generate a Feishu web link from token + type
+// ---------------------------------------------------------------------------
+
+const DOC_TYPE_URL_PREFIX = {
+  folder:   'drive/folder',
+  docx:     'docx',
+  doc:      'docs',
+  sheet:    'sheets',
+  bitable:  'base',
+  mindnote: 'mindnotes',
+  slides:   'slides',
+  file:     'drive/file',
+};
+
+function buildFeishuUrl(token, type) {
+  if (!token) return '';
+  const prefix = DOC_TYPE_URL_PREFIX[type];
+  if (!prefix) return '';
+  return `https://www.feishu.cn/${prefix}/${token}`;
+}
+
+// ---------------------------------------------------------------------------
 // Feishu Drive API helpers
 // ---------------------------------------------------------------------------
 
@@ -498,14 +520,16 @@ async function main() {
       }
       const data = await createFolder(accessToken, args.name, args.folderToken || '');
       const token = data?.token;
-      const url = data?.url || (token ? `https://www.feishu.cn/drive/folder/${token}` : '');
+      const url = data?.url || buildFeishuUrl(token, 'folder');
       out({
         action: 'create_folder',
         folder_token: token,
         url,
         name: args.name,
         parent_folder_token: args.folderToken || '',
-        reply: `已在目标目录下创建文件夹「${args.name}」。`,
+        reply: url
+          ? `已在目标目录下创建文件夹「${args.name}」。\n📁 链接：${url}`
+          : `已在目标目录下创建文件夹「${args.name}」。`,
       });
       return;
     }
@@ -536,10 +560,14 @@ async function main() {
         die({ error: 'invalid_param', message: `--type 不支持：${args.type}` });
       }
       const file = await copyFile(accessToken, args.fileToken, args.name, args.type, args.folderToken || '');
+      const copyUrl = file?.url || buildFeishuUrl(file?.token, args.type);
       out({
         action: 'copy',
         file,
-        reply: `复制已完成：${file?.name || args.name}`,
+        url: copyUrl,
+        reply: copyUrl
+          ? `复制已完成：${file?.name || args.name}\n📄 链接：${copyUrl}`
+          : `复制已完成：${file?.name || args.name}`,
       });
       return;
     }
@@ -570,6 +598,7 @@ async function main() {
     if (args.action === 'upload') {
       const input = loadUploadInput(args);
       const uploaded = await uploadFile(accessToken, input.fileName, input.buffer, args.folderToken || '');
+      const uploadUrl = buildFeishuUrl(uploaded.file_token, 'file');
       out({
         action: 'upload',
         mode: uploaded.mode,
@@ -578,8 +607,11 @@ async function main() {
         size: uploaded.size || input.buffer.length,
         source: input.source,
         source_path: input.sourcePath || undefined,
+        url: uploadUrl,
         data: uploaded.data,
-        reply: `文件上传成功：${uploaded.file_name || input.fileName}`,
+        reply: uploadUrl
+          ? `文件上传成功：${uploaded.file_name || input.fileName}\n📎 链接：${uploadUrl}`
+          : `文件上传成功：${uploaded.file_name || input.fileName}`,
       });
       return;
     }

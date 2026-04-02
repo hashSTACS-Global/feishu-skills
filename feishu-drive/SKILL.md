@@ -81,7 +81,8 @@ node ./drive.js --open-id "SENDER_OPEN_ID" --action delete --file-token "文件T
 - `--type` 可选值：`doc`、`sheet`、`file`、`bitable`、`docx`、`folder`、`mindnote`、`slides`。
 - `upload` 时 `--file-path` 优先；未提供时可用 `--file-base64 + --file-name`。
 - `download` 未给 `--output-path` 时返回 `file_content_base64`，大文件建议指定输出路径。
-- 脚本返回 JSON，将 `reply` 字段原样输出给用户，必要时可结合 `items` / `folder_token` 等字段做后续编排。
+- 脚本返回 JSON，将 `reply` 字段原样输出给用户，必要时可结合 `items` / `folder_token` / `url` 等字段做后续编排。
+- `create_folder`、`copy`、`upload` 操作成功时会在 `reply` 和 `url` 字段中包含飞书链接，方便用户直接访问。
 
 ## 删除前确认（必须遵守）
 
