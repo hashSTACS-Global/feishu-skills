@@ -117,7 +117,7 @@ const DOC_TYPE_URL_PREFIX = {
   bitable:  'base',
   mindnote: 'mindnotes',
   slides:   'slides',
-  file:     'drive/file',
+  file:     'file',
 };
 
 function buildFeishuUrl(token, type) {
