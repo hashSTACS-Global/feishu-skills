@@ -57,6 +57,8 @@ node ./wiki.js --open-id "ou_xxx" --action node_get --token "NODE_TOKEN" --obj-t
 
 > `node_get` 的核心用途：将 wiki 类型的 node_token 转换为实际文档的 obj_token（用于后续 feishu-fetch-doc、feishu-sheet 等 skill）。
 
+返回 `url` 字段为节点链接（格式 `https://www.feishu.cn/wiki/{node_token}`）。
+
 ### 创建节点（新文档）
 
 ```bash
@@ -105,6 +107,8 @@ node ./wiki.js --open-id "ou_xxx" --action node_copy \
   --target-space-id "TARGET_SPACE_ID" --target-parent-token "TARGET_PARENT_TOKEN"
 ```
 
+返回 `url` 字段为新节点链接（格式 `https://www.feishu.cn/wiki/{node_token}`）。
+
 ---
 
 ## 参数总览
@@ -137,10 +141,10 @@ node ./wiki.js --open-id "ou_xxx" --action node_copy \
 | `space_get` | 获取指定知识空间详情 |
 | `space_create` | 创建知识空间 |
 | `node_list` | 列出空间内节点（根节点或指定父节点的子节点） |
-| `node_get` | 获取节点详情（可将 wiki token 转换为 obj_token） |
-| `node_create` | 在空间内创建新文档节点 |
-| `node_move` | 移动节点到另一位置 |
-| `node_copy` | 复制节点到另一位置（可跨空间） |
+| `node_get` | 获取节点详情（可将 wiki token 转换为 obj_token），返回 `url` |
+| `node_create` | 在空间内创建新文档节点，返回 `url` |
+| `node_move` | 移动节点到另一位置，返回 `url` |
+| `node_copy` | 复制节点到另一位置（可跨空间），返回 `url` |
 
 ## 典型场景
 
