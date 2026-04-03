@@ -16,6 +16,9 @@ const path = require('path');
 const { getConfig, getValidToken } = require(
   path.join(__dirname, '../feishu-auth/token-utils.js'),
 );
+const { sendCard } = require(
+  path.join(__dirname, '../feishu-auth/send-card.js'),
+);
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -75,6 +78,15 @@ function parseMemberIds(str) {
   return str.split(',').map(id => id.trim()).filter(Boolean);
 }
 
+// 根据截止时间计算提醒分钟数：1天内→15分钟，1-2天→30分钟，2天以上→60分钟
+function calcReminderMinutes(dueStr) {
+  const diffMs = new Date(dueStr).getTime() - Date.now();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  if (diffDays <= 1) return 15;
+  if (diffDays <= 2) return 30;
+  return 60;
+}
+
 // ---------------------------------------------------------------------------
 // Task actions
 // ---------------------------------------------------------------------------
@@ -82,7 +94,10 @@ function parseMemberIds(str) {
 async function createTask(args, token) {
   const body = { summary: args.summary || '未命名任务' };
   if (args.description) body.description = args.description;
-  if (args.due) body.due = { timestamp: toTimestamp(args.due), is_all_day: false };
+  if (args.due) {
+    body.due = { timestamp: toTimestamp(args.due), is_all_day: false };
+    body.reminders = [{ relative_fire_minute: calcReminderMinutes(args.due) }];
+  }
   const members = [];
   if (args.members) {
     for (const id of parseMemberIds(args.members)) members.push({ id, type: 'user', role: 'assignee' });
@@ -94,7 +109,20 @@ async function createTask(args, token) {
   if (args.tasklistId) body.tasklists = [{ tasklist_id: args.tasklistId }];
   const data = await apiCall('POST', '/task/v2/tasks', token, body, { user_id_type: 'open_id' });
   if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
-  out({ task: data.data?.task, reply: `任务「${args.summary}」已创建` });
+  const task = data.data?.task;
+  const taskUrl = task?.url || null;
+  const replyText = `任务「${args.summary || '未命名任务'}」已创建`;
+  if (args.openId && taskUrl) {
+    await sendCard({
+      openId: args.openId,
+      title: '✅ 任务已创建',
+      body: replyText,
+      buttonText: taskUrl ? '查看任务' : undefined,
+      buttonUrl: taskUrl || undefined,
+      color: 'green',
+    }).catch(() => {});
+  }
+  out({ task, url: taskUrl, reply: replyText });
 }
 
 async function getTask(args, token) {
