@@ -268,7 +268,7 @@ async function main() {
       case 'append': {
         const blocks = markdownToBlocks(args.markdown);
         await appendBlocks(docId, blocks, accessToken);
-        out({ success: true, doc_id: docId, mode: 'append', reply: `文档内容已追加` });
+        out({ success: true, doc_id: docId, doc_url: `https://www.feishu.cn/docx/${docId}`, mode: 'append', reply: `已将内容追加到文档末尾。链接：https://www.feishu.cn/docx/${docId}` });
         break;
       }
       case 'overwrite': {
@@ -284,7 +284,7 @@ async function main() {
         }
         const blocks = markdownToBlocks(args.markdown);
         await appendBlocks(docId, blocks, accessToken);
-        out({ success: true, doc_id: docId, mode: 'overwrite', reply: `文档内容已覆盖更新` });
+        out({ success: true, doc_id: docId, doc_url: `https://www.feishu.cn/docx/${docId}`, mode: 'overwrite', reply: `文档内容已覆盖更新。链接：https://www.feishu.cn/docx/${docId}` });
         break;
       }
       default: {

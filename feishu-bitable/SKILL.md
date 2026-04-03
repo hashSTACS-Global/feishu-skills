@@ -63,6 +63,15 @@ node ./bitable.js --open-id "ou_xxx" --action update_view --app-token "APP_TOKEN
 node ./bitable.js --open-id "ou_xxx" --action delete_view --app-token "APP_TOKEN" --table-id "TABLE_ID" --view-id "VIEW_ID"
 ```
 
+## 查看表格结构（数据表 + 字段）
+
+当用户要求查看多维表格有哪些数据表和字段时，需要两步操作：
+1. 先执行 `list_tables` 获取所有数据表
+2. 对每个数据表执行 `list_fields --table-id "TABLE_ID"` 获取字段列表
+3. 将数据表名称及其字段信息一起结构化展示给用户
+
+> ⚠️ `list_tables` 仅返回表名和 ID，不含字段信息。必须额外调用 `list_fields` 才能获取字段。
+
 ## 执行前确认
 
 **以下参数缺失或含糊时，必须先向用户询问，不得猜测或使用默认值：**

@@ -18,11 +18,21 @@ node ./fetch-doc.js --open-id "SENDER_OPEN_ID" --doc-id "文档TOKEN或URL"
 
 若为 wiki 链接，加 `--wiki`。脚本自动从 URL 解析 token。
 
+## 用户只提供文档标题时
+
+如果用户只提供了文档标题而非链接或 token，**必须先用 feishu-search-doc 搜索**，从结果中取得文档 token 后再执行本脚本：
+
+```bash
+node ../feishu-search-doc/search-doc.js --open-id "SENDER_OPEN_ID" --query "文档标题"
+```
+
+从搜索结果中找到匹配的文档 token（`doc_token` 字段），再传给 `--doc-id`。**不要因为缺少 token 就向用户询问，应主动搜索。**
+
 ## 必须确认的参数
 
 | 参数 | 何时询问 |
 |---|---|
-| `--doc-id` | 用户未提供文档链接或 token |
+| `--doc-id` | 用户未提供文档链接或 token，且通过 feishu-search-doc 搜索后仍无法确定目标文档时 |
 
 ## 输出
 

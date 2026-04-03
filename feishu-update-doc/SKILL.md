@@ -36,6 +36,10 @@ node ./update-doc.js --open-id "SENDER_OPEN_ID" --doc-id "TOKEN" --mode "overwri
 
 可选：`--new-title "新标题"`
 
+## 输出
+
+脚本返回 JSON，包含 `doc_url` 字段（文档链接）和 `reply` 字段。**务必将文档链接展示给用户。**
+
 ## 必须确认的参数
 
 | 参数 | 何时询问 |
