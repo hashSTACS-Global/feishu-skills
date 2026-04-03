@@ -44,6 +44,12 @@ function parseArgs() {
 function out(obj) { process.stdout.write(JSON.stringify(obj) + '\n'); }
 function die(obj) { out(obj); process.exit(1); }
 
+/** User-visible reply with Markdown link (do not shorten or normalize title). */
+function replyCreated(title, docUrl) {
+  const t = title || '未命名文档';
+  return `文档「${t}」已创建。链接：[${t}](${docUrl})`;
+}
+
 // ---------------------------------------------------------------------------
 // Markdown → Feishu blocks (basic converter)
 //
@@ -368,7 +374,13 @@ async function main() {
           buttonUrl: docUrl,
           color: 'orange',
         }).catch(() => {});
-        out({ doc_id: documentId, doc_url: docUrl, reply: `文档「${warnTitle}」已创建` });
+        out({
+          doc_id: documentId,
+          doc_url: docUrl,
+          title: warnTitle,
+          wiki_move_failed: true,
+          reply: `${replyCreated(warnTitle, docUrl)}（注意：移入知识库失败：${wikiErr.message}）`,
+        });
         return;
       }
     }
@@ -382,7 +394,12 @@ async function main() {
       buttonUrl: docUrl,
       color: 'green',
     }).catch(() => {});
-    out({ doc_id: documentId, doc_url: docUrl, title: finalTitle, reply: `文档「${finalTitle}」已创建` });
+    out({
+      doc_id: documentId,
+      doc_url: docUrl,
+      title: finalTitle,
+      reply: replyCreated(finalTitle, docUrl),
+    });
   } catch (err) {
     // Token may have been revoked server-side
     if (err.message && err.message.includes('99991663')) {

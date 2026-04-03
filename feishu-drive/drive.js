@@ -19,8 +19,8 @@
  *   # Move file (async)
  *   node ./drive.js --open-id "ou_xxx" --action move --file-token "TOKEN" --type "docx" --folder-token "目标目录TOKEN"
  *
- *   # Delete file (async)
- *   node ./drive.js --open-id "ou_xxx" --action delete --file-token "TOKEN" --type "docx"
+ *   # Delete file (async; requires prior get_meta + user confirmation)
+ *   node ./drive.js --open-id "ou_xxx" --action delete --file-token "TOKEN" --type "docx" --confirm-delete
  *
  * Output: always a single-line JSON object.
  *
@@ -56,6 +56,7 @@ function parseArgs() {
     fileBase64: null,
     fileName: null,
     outputPath: null,
+    confirmDelete: false,
   };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -91,6 +92,9 @@ function parseArgs() {
         break;
       case '--output-path':
         r.outputPath = argv[++i];
+        break;
+      case '--confirm-delete':
+        r.confirmDelete = true;
         break;
     }
   }
@@ -270,6 +274,29 @@ async function getMeta(accessToken, requestDocs) {
   return data.data?.metas || [];
 }
 
+/** One-line human summary per meta for reply text (Layer3 / user-visible). */
+function formatMetaSummaryLine(m, index) {
+  const title = m.name ?? m.title ?? m.doc_token ?? `第${index + 1}条`;
+  const docType = m.type ?? m.doc_type ?? '?';
+  const tok = m.doc_token ?? m.token ?? '';
+  const owner = m.owner_id ?? m.owner ?? '';
+  const created = m.created_time ?? m.create_time ?? '';
+  const modified = m.latest_modify_time ?? m.modified_time ?? m.edit_time ?? '';
+  const size = m.size != null && m.size !== '' ? m.size : '';
+  const parts = [`${index + 1}.「${title}」`, `类型:${docType}`, `token:${tok}`];
+  if (owner) parts.push(`创建者/所有者:${owner}`);
+  if (created) parts.push(`创建:${created}`);
+  if (modified) parts.push(`修改:${modified}`);
+  if (size !== '') parts.push(`大小:${size}`);
+  return parts.join(' | ');
+}
+
+function buildGetMetaReply(metas) {
+  if (!metas.length) return '未返回任何文件元信息。';
+  const lines = metas.map((m, i) => formatMetaSummaryLine(m, i));
+  return `共 ${metas.length} 条元信息：\n${lines.join('\n')}`;
+}
+
 async function copyFile(accessToken, fileToken, name, type, folderToken) {
   const data = await apiCall('POST', `/drive/v1/files/${encodeURIComponent(fileToken)}/copy`, accessToken, {
     body: {
@@ -313,7 +340,9 @@ function loadUploadInput(args) {
   if (args.filePath) {
     const resolved = path.resolve(args.filePath);
     if (!fs.existsSync(resolved)) {
-      throw new Error(`文件不存在: ${resolved}`);
+      throw new Error(
+        `文件不存在: ${resolved}。请确认当前工作目录正确，或使用绝对路径后再执行 upload。`,
+      );
     }
     const stat = fs.statSync(resolved);
     if (!stat.isFile()) {
@@ -562,15 +591,14 @@ async function main() {
     if (args.action === 'get_meta') {
       const requestDocs = parseRequestDocs(args.requestDocs);
       const metas = await getMeta(accessToken, requestDocs);
-      const metaLines = metas.slice(0, 10).map(m =>
-        `- ${m.title || m.name || m.doc_token}（${m.type || '未知'}）`
-      ).join('\n');
-      const metaMore = metas.length > 10 ? `\n...等共 ${metas.length} 条` : '';
+      const replyText = buildGetMetaReply(metas);
+      const cardLines = metas.slice(0, 8).map((m, i) => formatMetaSummaryLine(m, i));
+      const cardMore = metas.length > 8 ? `\n...共 ${metas.length} 条（见 reply）` : '';
       await sendCard({
         openId: args.openId,
         title: '📋 文件元信息',
         body: metas.length > 0
-          ? `获取到 **${metas.length}** 条元信息：\n${metaLines}${metaMore}`
+          ? `**${metas.length}** 条：\n${cardLines.join('\n')}${cardMore}`
           : '未获取到元信息。',
         color: 'blue',
       }).catch(() => {});
@@ -578,7 +606,7 @@ async function main() {
         action: 'get_meta',
         count: metas.length,
         metas,
-        reply: `已获取 ${metas.length} 条文件元信息。`,
+        reply: replyText,
       });
       return;
     }
@@ -606,13 +634,15 @@ async function main() {
         buttonUrl: copyUrl || undefined,
         color: 'green',
       }).catch(() => {});
+      const copyToken = file?.token ?? file?.file_token ?? '';
+      const copySummary = `复制成功 | name=${file?.name || args.name} | token=${copyToken} | type=${args.type}${copyUrl ? ` | url=${copyUrl}` : ''}`;
       out({
         action: 'copy',
         file,
         url: copyUrl,
         reply: copyUrl
-          ? `复制已完成：${file?.name || args.name}\n📄 链接：${copyUrl}`
-          : `复制已完成：${file?.name || args.name}`,
+          ? `${copySummary}\n副本链接：[${file?.name || args.name}](${copyUrl})`
+          : copySummary,
       });
       return;
     }
@@ -639,11 +669,13 @@ async function main() {
           : '文件移动请求已提交',
         color: 'green',
       }).catch(() => {});
+      const moveSummary = `移动已提交 | file_token=${args.fileToken} | type=${args.type} | 目标folder_token=${args.folderToken}${data.task_id ? ` | task_id=${data.task_id}` : ''}`;
       out({
         action: 'move',
         task_id: data.task_id || null,
+        target_folder_token: args.folderToken,
         data,
-        reply: data.task_id ? `移动任务已提交（task_id: ${data.task_id}）。` : '移动请求已提交。',
+        reply: data.task_id ? `${moveSummary}（异步任务，请稍后在目标文件夹中确认）` : `${moveSummary}`,
       });
       return;
     }
@@ -672,9 +704,11 @@ async function main() {
         source_path: input.sourcePath || undefined,
         url: uploadUrl,
         data: uploaded.data,
-        reply: uploadUrl
-          ? `文件上传成功：${displayName}\n📎 链接：${uploadUrl}`
-          : `文件上传成功：${displayName}`,
+        reply: (() => {
+          const sz = uploaded.size || input.buffer.length;
+          const summary = `上传成功 | file=${displayName} | token=${uploaded.file_token || ''} | size=${sz} bytes | mode=${uploaded.mode}${uploadUrl ? ` | url=${uploadUrl}` : ''}`;
+          return uploadUrl ? `${summary}\n文件链接：[${displayName}](${uploadUrl})` : summary;
+        })(),
       });
       return;
     }
@@ -715,12 +749,22 @@ async function main() {
       if (!DOC_TYPES.has(args.type)) {
         die({ error: 'invalid_param', message: `--type 不支持：${args.type}` });
       }
+      if (!args.confirmDelete) {
+        die({
+          error: 'confirmation_required',
+          message:
+            '删除前必须先执行 get_meta，向用户展示文件名、类型与 token，待用户明确确认后再追加 --confirm-delete 执行删除。',
+          hint:
+            'node ./drive.js --open-id "..." --action delete --file-token "..." --type "docx" --confirm-delete',
+        });
+      }
       const data = await deleteFile(accessToken, args.fileToken, args.type);
+      const delSummary = `删除已提交 | file_token=${args.fileToken} | type=${args.type}${data.task_id ? ` | task_id=${data.task_id}` : ''}`;
       out({
         action: 'delete',
         task_id: data.task_id || null,
         data,
-        reply: data.task_id ? `删除任务已提交（task_id: ${data.task_id}）。` : '删除请求已提交。',
+        reply: data.task_id ? `${delSummary}（异步任务，删除完成后文件将不可恢复）` : `${delSummary}`,
       });
       return;
     }

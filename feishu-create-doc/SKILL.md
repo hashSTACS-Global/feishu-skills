@@ -1,7 +1,7 @@
 ---
 name: feishu-create-doc
 description: |
-  创建飞书云文档。使用当前用户的个人 OAuth token。
+  创建飞书云文档。使用当前用户的个人 OAuth token。标题须与用户输入逐字一致；成功回复含 Markdown 文档链接。
 overrides: feishu_create_doc, feishu_pre_auth
 inline: true
 ---
@@ -9,6 +9,14 @@ inline: true
 # feishu-create-doc
 
 直接用 `exec` 执行，不要检查文件或环境。
+
+## 标题与回复格式（必须遵守）
+
+- **`--title` 必须与用户给出的标题逐字一致**（含下划线 `_`、空格、中英文括号等）。禁止擅自「美化」或改写标题。
+- 执行完脚本后，将返回 JSON 中的 **`reply` 完整**发给用户（含 **Markdown 链接** `[标题](doc_url)`，见脚本输出）；并可同时附上 `doc_url` 字段，避免只写「点击查看」而无 URL。
+- 用户要求在某个**知识库**中新建文档时：
+  - 若未给出 `wiki` 节点 token：先用 **feishu-search-doc**（如 `list_wiki_spaces` / `wiki_nodes`）列出候选空间或节点，请用户确认**具体知识库与位置**；说明应用/用户需对该知识库有创建权限。
+  - 取得 `node_token` 后传入 `--wiki-node` 再创建；不要猜测 token。
 
 ## 文件夹 / 知识库仅有名称、没有 token 时
 
@@ -34,7 +42,7 @@ node ./create-doc.js --open-id "SENDER_OPEN_ID" --title "文档标题" --markdow
 
 ## 输出
 
-脚本返回 JSON，将 `reply` 字段原样输出给用户。
+脚本返回 JSON，将 **`reply` 字段原样、完整**输出给用户（勿截断）；`reply` 中已包含可点击的 Markdown 文档链接。
 
 ## 授权
 
