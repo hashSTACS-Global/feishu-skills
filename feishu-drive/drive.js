@@ -36,6 +36,7 @@ const fs = require('fs');
 const { getConfig, getValidToken } = require(
   path.join(__dirname, '../feishu-auth/token-utils.js'),
 );
+const { sendCard } = require(path.join(__dirname, '../feishu-auth/send-card.js'));
 
 // ---------------------------------------------------------------------------
 // CLI args
@@ -506,6 +507,20 @@ async function main() {
   try {
     if (args.action === 'list') {
       const items = await listFolder(accessToken, args.folderToken || '');
+      const folderUrl = args.folderToken ? buildFeishuUrl(args.folderToken, 'folder') : '';
+      const lines = items.slice(0, 10).map(it => `- ${it.name}（${it.type}）`).join('\n');
+      const more = items.length > 10 ? `\n...等共 ${items.length} 个项目` : '';
+      const bodyText = items.length > 0
+        ? `文件夹下共 **${items.length}** 个项目：\n${lines}${more}`
+        : '文件夹为空。';
+      await sendCard({
+        openId: args.openId,
+        title: '📂 文件列表',
+        body: bodyText,
+        buttonText: folderUrl ? '打开文件夹' : undefined,
+        buttonUrl: folderUrl || undefined,
+        color: 'blue',
+      }).catch(() => {});
       out({
         action: 'list',
         folder_token: args.folderToken || '',
@@ -523,6 +538,14 @@ async function main() {
       const data = await createFolder(accessToken, args.name, args.folderToken || '');
       const token = data?.token;
       const url = data?.url || buildFeishuUrl(token, 'folder');
+      await sendCard({
+        openId: args.openId,
+        title: '📁 文件夹已创建',
+        body: `文件夹「${args.name}」创建成功`,
+        buttonText: url ? '打开文件夹' : undefined,
+        buttonUrl: url || undefined,
+        color: 'green',
+      }).catch(() => {});
       out({
         action: 'create_folder',
         folder_token: token,
@@ -539,6 +562,18 @@ async function main() {
     if (args.action === 'get_meta') {
       const requestDocs = parseRequestDocs(args.requestDocs);
       const metas = await getMeta(accessToken, requestDocs);
+      const metaLines = metas.slice(0, 10).map(m =>
+        `- ${m.title || m.name || m.doc_token}（${m.type || '未知'}）`
+      ).join('\n');
+      const metaMore = metas.length > 10 ? `\n...等共 ${metas.length} 条` : '';
+      await sendCard({
+        openId: args.openId,
+        title: '📋 文件元信息',
+        body: metas.length > 0
+          ? `获取到 **${metas.length}** 条元信息：\n${metaLines}${metaMore}`
+          : '未获取到元信息。',
+        color: 'blue',
+      }).catch(() => {});
       out({
         action: 'get_meta',
         count: metas.length,
@@ -563,6 +598,14 @@ async function main() {
       }
       const file = await copyFile(accessToken, args.fileToken, args.name, args.type, args.folderToken || '');
       const copyUrl = file?.url || buildFeishuUrl(file?.token, args.type);
+      await sendCard({
+        openId: args.openId,
+        title: '📄 文件已复制',
+        body: `文件「${file?.name || args.name}」复制成功`,
+        buttonText: copyUrl ? '查看副本' : undefined,
+        buttonUrl: copyUrl || undefined,
+        color: 'green',
+      }).catch(() => {});
       out({
         action: 'copy',
         file,
@@ -588,6 +631,14 @@ async function main() {
         die({ error: 'missing_param', message: '--folder-token 参数必填（目标文件夹 token）' });
       }
       const data = await moveFile(accessToken, args.fileToken, args.type, args.folderToken);
+      await sendCard({
+        openId: args.openId,
+        title: '📦 文件已移动',
+        body: data.task_id
+          ? `文件移动任务已提交（task_id: ${data.task_id}）`
+          : '文件移动请求已提交',
+        color: 'green',
+      }).catch(() => {});
       out({
         action: 'move',
         task_id: data.task_id || null,
@@ -601,19 +652,29 @@ async function main() {
       const input = loadUploadInput(args);
       const uploaded = await uploadFile(accessToken, input.fileName, input.buffer, args.folderToken || '');
       const uploadUrl = buildFeishuUrl(uploaded.file_token, 'file');
+      const displayName = uploaded.file_name || input.fileName;
+      const sizeKB = Math.round((uploaded.size || input.buffer.length) / 1024);
+      await sendCard({
+        openId: args.openId,
+        title: '📎 文件已上传',
+        body: `文件「${displayName}」上传成功（${sizeKB} KB）`,
+        buttonText: uploadUrl ? '查看文件' : undefined,
+        buttonUrl: uploadUrl || undefined,
+        color: 'green',
+      }).catch(() => {});
       out({
         action: 'upload',
         mode: uploaded.mode,
         file_token: uploaded.file_token,
-        file_name: uploaded.file_name || input.fileName,
+        file_name: displayName,
         size: uploaded.size || input.buffer.length,
         source: input.source,
         source_path: input.sourcePath || undefined,
         url: uploadUrl,
         data: uploaded.data,
         reply: uploadUrl
-          ? `文件上传成功：${uploaded.file_name || input.fileName}\n📎 链接：${uploadUrl}`
-          : `文件上传成功：${uploaded.file_name || input.fileName}`,
+          ? `文件上传成功：${displayName}\n📎 链接：${uploadUrl}`
+          : `文件上传成功：${displayName}`,
       });
       return;
     }
