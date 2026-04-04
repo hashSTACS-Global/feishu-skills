@@ -23,8 +23,10 @@ unzip -qo /tmp/feishu-skills.zip -d /tmp/
 ```
 
 ```bash
-node /tmp/feishu-skills-main/install.js
+node /tmp/feishu-skills-main/install.mjs
 ```
+
+> 如果报 ESM 相关错误，改用 `node /tmp/feishu-skills-main/install.js`（CommonJS 版本）。
 
 ```bash
 rm -rf /tmp/feishu-skills-main /tmp/feishu-skills.zip

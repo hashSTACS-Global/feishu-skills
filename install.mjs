@@ -11,11 +11,13 @@
  * report the correct target path to the user.
  */
 
-'use strict';
 
-const fs   = require('fs');
-const path = require('path');
-const os   = require('os');
+
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const SKILLS = [
   'feishu-quick-setup',
@@ -130,7 +132,7 @@ function removeRecursive(p) {
 // Detect in-place mode: install.js is already inside a skills directory
 // (e.g. AI unzipped the repo directly into skills/feishu-skills/)
 // ---------------------------------------------------------------------------
-const repoDir = path.dirname(path.resolve(process.argv[1]));
+const repoDir = __dirname;
 const parentDir = path.dirname(repoDir);
 const parentName = path.basename(parentDir).toLowerCase();
 const hasSkillDirs = SKILLS.some(s => fs.existsSync(path.join(repoDir, s)));

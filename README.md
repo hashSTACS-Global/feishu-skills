@@ -8,6 +8,22 @@ Enables AI agents to read/write Feishu documents, send messages, manage calendar
 
 ---
 
+## 30-Second Feishu Setup
+
+> **No more manual app creation.** Scan a QR code with Feishu, and your bot is ready.
+
+After installation, just tell your agent:
+
+```
+Help me set up the Feishu plugin
+```
+
+The agent will generate a QR code link → you scan it with the Feishu app → bot credentials are automatically saved to your OpenClaw config. Done.
+
+See [feishu-quick-setup](#skills-included) for details.
+
+---
+
 ## Installation
 
 ```bash
@@ -22,6 +38,7 @@ node install.js
 
 | Skill | Description |
 |---|---|
+| **feishu-quick-setup** | One-click Feishu bot creation via QR code scan. Automatically writes credentials to OpenClaw config. |
 | **feishu-auth** | OAuth Device Flow auth hub. Shared by all other skills. |
 | **feishu-create-doc** | Create Feishu Docs with Markdown content |
 | **feishu-fetch-doc** | Read Feishu Docs / Wiki pages |
