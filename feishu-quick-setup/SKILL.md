@@ -16,7 +16,7 @@ inline: true
 
 - **命令**：`node`
 - 脚本路径相对于本 SKILL.md 所在目录，执行前需解析为绝对路径
-- 优先使用 `quick-setup.mjs`；如果报模块错误改用 `quick-setup.js`
+- 脚本提供 `.js` 和 `.mjs` 两个版本，优先使用 `.mjs`，若报模块错误改用 `.js`
 
 ## 执行流程
 
