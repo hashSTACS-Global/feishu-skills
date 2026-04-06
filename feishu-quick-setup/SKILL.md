@@ -1,90 +1,93 @@
 ---
 name: feishu-quick-setup
 description: |
-  一键配置飞书插件（创建飞书应用）。通过飞书二维码扫码自动创建飞书 Bot 并写入 OpenClaw 配置文件。
-  当用户说"配置飞书"、"安装飞书插件"、"一键安装飞书"、"setup feishu"、"创建飞书应用"等意图时触发。
-  适用于尚未配置飞书 appId/appSecret 的场景。
-  注意：本技能调用飞书 App Registration API 创建新应用，与 feishu-auth（OAuth 用户授权）完全不同。
+  One-click Feishu bot creation. Uses the Feishu App Registration API (Device Flow) to create
+  a new Feishu Bot and save credentials to the OpenClaw config file.
+  Trigger when the user says "配置飞书", "安装飞书插件", "setup feishu", "创建飞书应用", etc.
+  For users who have not yet configured appId/appSecret.
+  Note: this skill creates a NEW Feishu app — it is different from feishu-auth (OAuth user authorization).
 inline: true
 ---
 
 # feishu-quick-setup
 
-⚠️ **读完本文件后，直接按步骤用 `exec` 执行命令，不要自行编写代码、不要构造 URL、不要调用任何 API。**
+> **Module compatibility**: Scripts are provided in both `.js` and `.mjs`. Prefer `.mjs`; if you get a module error, fall back to `.js`.
 
-## 运行环境
+Create a Feishu Bot for the user by executing the commands below step by step. All script output is single-line JSON.
 
-- **命令**：`node`
-- 脚本路径相对于本 SKILL.md 所在目录，执行前需解析为绝对路径
-- 脚本提供 `.js` 和 `.mjs` 两个版本，优先使用 `.mjs`，若报模块错误改用 `.js`
+## Runtime
 
-## 执行流程
+- **Command**: `node`
+- Resolve script paths relative to this SKILL.md directory to absolute paths before execution.
 
-依次执行以下步骤，每步都用 `exec` 执行命令并解析 JSON 返回值。
+## Steps
 
-### Step 1: 检查现有配置
-
-```bash
-node "{脚本绝对路径}/quick-setup.mjs" --status
-```
-
-- `configured: true` → 告知用户飞书已配置（显示 appId），询问是否重新配置
-- `configured: false` → 继续 Step 2
-
-### Step 2: 发起注册
+### Step 1 — Check existing config
 
 ```bash
-node "{脚本绝对路径}/quick-setup.mjs" --begin --domain "feishu"
+node "{script_dir}/quick-setup.mjs" --status
 ```
 
-- `--domain`：`feishu`（中国大陆，默认）或 `lark`（国际版）
-- 成功返回 `error: false`，拿到 `verificationUrl` 和 `deviceCode`
-- 失败返回 `error: true`，告知用户错误信息并停止
+| Field | Action |
+|-------|--------|
+| `configured: true` | Tell the user Feishu is already configured (show `appId`), ask if they want to reconfigure |
+| `configured: false` | Proceed to Step 2 |
 
-### Step 3: 展示链接给用户
+### Step 2 — Start registration
 
-将 Step 2 返回的 `verificationUrl` **原样**展示给用户：
+```bash
+node "{script_dir}/quick-setup.mjs" --begin --domain "feishu"
+```
+
+- `--domain`: `feishu` (mainland China, default) or `lark` (international)
+- On `error: false` — you get `verificationUrl` and `deviceCode`. Proceed to Step 3.
+- On `error: true` — show the error message to the user and stop.
+
+### Step 3 — Show the link
+
+Display the `verificationUrl` from Step 2 to the user **as-is**:
 
 > 请点击以下链接完成飞书授权：
 > {verificationUrl}
 >
 > 点击后在飞书中点击"确认创建"即可。
 
-**严禁修改、替换或自行构造链接。正确的链接格式为 `https://open.feishu.cn/page/openclaw?user_code=...`。**
-**严禁提及二维码或扫码，本流程只通过链接完成。**
+The correct link format is `https://open.feishu.cn/page/openclaw?user_code=...`. Do not modify or reconstruct the URL.
+This flow uses a link, not a QR code.
 
-展示链接后**立即进入 Step 4 轮询**，不要等用户回复。
+After showing the link, proceed directly to Step 4 (no need to wait for user reply).
 
-### Step 4: 轮询等待确认
-
-展示链接后立即执行此命令。脚本会在内部自动每 5 秒轮询一次，直到用户完成授权或超时（默认 5 分钟）：
+### Step 4 — Poll for completion
 
 ```bash
-node "{脚本绝对路径}/quick-setup.mjs" --poll --wait --timeout 300
+node "{script_dir}/quick-setup.mjs" --poll --wait --timeout 300
 ```
 
-此命令会阻塞等待，直到返回结果：
-- `status: "completed"` → 拿到 `appId` 和 `appSecret`，进入 Step 5
-- `status: "error"` → 告知用户错误信息
-  - `expired_token` → 链接已过期，需从 Step 2 重新开始
-  - `access_denied` → 用户拒绝了创建
-- `status: "timeout"` → 等待超时，建议用户重试
+The script polls internally every 5 seconds until the user completes authorization or the timeout (default 5 min) is reached.
 
-### Step 5: 保存配置
+| Result | Action |
+|--------|--------|
+| `status: "completed"` | Take `appId` and `appSecret` from the response, proceed to Step 5 |
+| `status: "error"`, `expired_token` | Link expired — restart from Step 2 |
+| `status: "error"`, `access_denied` | User denied the request — inform the user |
+| `status: "timeout"` | Timed out — suggest the user retry |
+
+### Step 5 — Save config
 
 ```bash
-node "{脚本绝对路径}/quick-setup.mjs" --save --app-id "APP_ID" --app-secret "APP_SECRET" --domain "feishu"
+node "{script_dir}/quick-setup.mjs" --save --app-id "APP_ID" --app-secret "APP_SECRET" --domain "feishu"
 ```
 
-将 APP_ID 和 APP_SECRET 替换为 Step 4 返回的值。
+Replace `APP_ID` and `APP_SECRET` with the values from Step 4.
 
-- `success: true` → **将返回 JSON 中的 `message` 字段内容原样展示给用户**（已包含权限配置链接和说明）
-- `success: false` → 告知用户写入失败的原因
+| Result | Action |
+|--------|--------|
+| `success: true` | Show the `message` field from the response to the user (it contains next-step instructions and a permissions link) |
+| `success: false` | Show the failure reason to the user |
 
-## 禁止事项
+## Notes
 
-- **禁止**自行调用飞书 API 或构造任何 URL
-- **禁止**使用 feishu-auth 或 OAuth 授权流程（那是用于已有应用的用户授权，不是创建应用）
-- **禁止**只描述不执行，必须直接用 `exec` 执行上面的命令
-- **禁止**跳过任何步骤
-- **禁止**修改脚本返回的 verificationUrl
+- Always use the commands above; do not call Feishu APIs directly or construct URLs manually.
+- This skill creates a new app. For user-level OAuth on an existing app, use `feishu-auth` instead.
+- Execute each step — do not skip steps or only describe them.
+- Always show the `verificationUrl` exactly as returned by the script.
