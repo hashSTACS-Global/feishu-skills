@@ -72,14 +72,25 @@ node ./media.js --open-id "ou_xxx" --action download \
 | `--action` | 是 | `insert` / `download` |
 | **insert 参数** | | |
 | `--doc-id` | insert 必填 | 文档 ID 或 URL |
-| `--file-path` | insert 必填 | 本地文件绝对路径（≤20MB） |
+| `--file-path` | insert 必填 | 本地文件绝对路径（≤20MB），必须在允许目录内 |
 | `--type` | 可选 | `image`（默认）/ `file` |
 | `--align` | 可选 | `left` / `center`（默认）/ `right`，仅图片 |
 | `--caption` | 可选 | 图片描述文字 |
 | **download 参数** | | |
 | `--resource-token` | download 必填 | file_token（媒体）或 whiteboard_id（画板） |
 | `--resource-type` | download 必填 | `media` / `whiteboard` |
-| `--output-path` | 可选 | 本地保存路径（默认：`$ENCLAWS_USER_WORKSPACE/download/<resource_token>` 或 `./download/<resource_token>`） |
+| `--output-path` | 可选 | 本地保存路径（默认：`$ENCLAWS_USER_WORKSPACE/download/<resource_token>` 或 `./download/<resource_token>`），必须在允许目录内 |
+
+---
+
+## 路径限制
+
+`--file-path` 和 `--output-path` 只允许以下目录内的路径：
+
+- `/tmp/`
+- `~/.enclaws/tenants/`（含所有租户 workspace）
+
+其他路径会返回 `path_not_allowed` 错误。
 
 ---
 

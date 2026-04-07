@@ -22,6 +22,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { getConfig, getValidToken } = require(
   path.join(__dirname, '../feishu-auth/token-utils.js'),
 );
@@ -31,6 +32,29 @@ const { getConfig, getValidToken } = require(
 // ---------------------------------------------------------------------------
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+
+// 允许读取（insert --file-path）的目录白名单
+const ALLOWED_READ_DIRS = [
+  '/tmp/',
+  path.join(os.homedir(), '.enclaws', 'tenants'),
+];
+
+// 允许写入（download --output-path）的目录白名单
+const ALLOWED_WRITE_DIRS = [
+  '/tmp/',
+  path.join(os.homedir(), '.enclaws', 'tenants'),
+];
+
+function checkPathAllowed(filePath, allowedDirs, paramName) {
+  const resolved = path.resolve(filePath);
+  const allowed = allowedDirs.some(dir => resolved.startsWith(path.resolve(dir)));
+  if (!allowed) {
+    die({
+      error: 'path_not_allowed',
+      message: `${paramName} 路径不在允许范围内: ${filePath}\n允许的目录: ${allowedDirs.join(', ')}`,
+    });
+  }
+}
 
 const ALIGN_MAP = { left: 1, center: 2, right: 3 };
 
@@ -134,6 +158,9 @@ async function insertMedia(args, accessToken) {
   const documentId = extractDocumentId(args.docId);
   const filePath = path.resolve(args.filePath);
 
+  // 校验路径白名单
+  checkPathAllowed(filePath, ALLOWED_READ_DIRS, '--file-path');
+
   // 校验文件
   if (!fs.existsSync(filePath)) die({ error: 'file_not_found', message: `文件不存在：${filePath}` });
   const stat = fs.statSync(filePath);
@@ -235,6 +262,9 @@ async function downloadMedia(args, accessToken) {
   const contentType = res.headers.get('content-type') || '';
   const outputPath = args.outputPath || path.join(resolveDefaultOutputDir(), args.resourceToken);
   let finalPath = path.resolve(outputPath);
+
+  // 校验写入路径白名单（在补扩展名之前，用目录部分校验）
+  checkPathAllowed(path.dirname(finalPath), ALLOWED_WRITE_DIRS, '--output-path');
 
   // 自动补扩展名
   if (!path.extname(finalPath) && contentType) {
