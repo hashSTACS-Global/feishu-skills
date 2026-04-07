@@ -10,6 +10,20 @@ inline: true
 
 直接用 `exec` 执行，不要检查文件或环境。
 
+## 下游技能编排
+
+`list` / `get_meta` 返回结果中的文件按类型分流到不同技能：
+
+| 文件类型（type/扩展名） | 下游技能 |
+|---|---|
+| `docx` / `doc`（飞书在线云文档） | **feishu-fetch-doc**（用 `token` 作为 `--doc-id`） |
+| `sheet`（飞书在线电子表格） | **feishu-sheet** |
+| `bitable`（飞书多维表格） | **feishu-bitable** |
+| `file` 且扩展名为 `.docx`/`.doc`/`.pdf`/`.pptx`/`.xlsx` 等附件 | **feishu-docx-download**（用 `token` 作为 `--file-token`） |
+| `folder` | 继续 `list` 进入子目录 |
+
+> 💡 当用户说「云盘里的 Word 文档」「我那个 PDF」时，先用 `list` / `search` 找到文件，再根据 `type` 决定下游技能。**Word/PDF/Excel 等附件文件 → feishu-docx-download**，**飞书在线 docx 文档 → feishu-fetch-doc**。
+
 ## 命令
 
 - **列出文件夹内容**
@@ -23,6 +37,8 @@ node ./drive.js --open-id "SENDER_OPEN_ID" --action list --folder-token "TOKEN"
 ```bash
 node ./drive.js --open-id "SENDER_OPEN_ID" --action create_folder --name "文件夹名" --folder-token "父文件夹TOKEN"
 ```
+
+> ⚠️ **创建前必须先检查同名是否存在**：用户说「在「XX」文件夹下创建...」时，「XX」很可能是已存在的引用。**先用 `list` 在父目录下查找同名 folder，存在则复用其 `token`，不要新建**。只有用户明确说"新建一个 XX 文件夹"且 list 结果中确认不存在时，才执行 `create_folder`。
 
 - **批量获取文件元信息（最多 50 条）**
 

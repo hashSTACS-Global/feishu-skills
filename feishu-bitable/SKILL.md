@@ -10,6 +10,23 @@ inline: true
 
 ⚠️ **读完本文件后，不要检查文件是否存在、不要检查环境、不要列目录。脚本文件已就绪，直接用 `exec` 工具执行下方命令。**
 
+## 执行环境
+
+- 所有 `node ./bitable.js` 命令的相对路径基准点是本 SKILL.md 所在目录（`feishu-bitable/`）
+- harness 通常已自动设置正确 cwd，**无需手动 cd**；若执行报 `Cannot find module`，再考虑加绝对路径
+- 跨技能调用使用 `node ../feishu-auth/auth.js` 这样的相对路径即可
+
+## 一次性申请全套权限（避免反复触发授权）
+
+bitable 的不同 action 需要不同 scope。**首次使用前一次性申请下面这套**，避免每个 action 失败一次再补一次：
+
+```bash
+node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id "CHAT_ID" --timeout 60 \
+  --scope "bitable:app drive:drive"
+```
+
+之后所有 bitable 操作都用同一个 token，不需要再次授权。
+
 基础命令: `node ./bitable.js --open-id "SENDER_OPEN_ID"`
 
 ## 应用操作
@@ -40,6 +57,46 @@ node ./bitable.js --open-id "ou_xxx" --action list_fields --app-token "APP_TOKEN
 node ./bitable.js --open-id "ou_xxx" --action update_field --app-token "APP_TOKEN" --table-id "TABLE_ID" --field-id "FIELD_ID" --name "新字段名"
 node ./bitable.js --open-id "ou_xxx" --action delete_field --app-token "APP_TOKEN" --table-id "TABLE_ID" --field-id "FIELD_ID"
 ```
+
+### `--field-type` 类型编号（必须按用户语义选择正确类型）
+
+| 编号 | 类型 | 适用场景 | 是否需要 `--property` |
+|---|---|---|---|
+| 1 | 多行文本 | 标题、描述、备注 | 否 |
+| 2 | 数字 | 金额、数量、得分 | 可选（格式化） |
+| 3 | **单选** | **状态、等级、优先级、分类**等枚举字段 | **必须**（预设选项） |
+| 4 | **多选** | 标签、负责模块等可多选的枚举 | **必须**（预设选项） |
+| 5 | 日期 | 创建时间、截止日期 | 可选 |
+| 7 | 复选框 | 是否完成、是否归档 | 否 |
+| 11 | **人员** | **负责人**、协作者、审核人 | 否 |
+| 13 | 电话号码 | 联系方式 | 否 |
+| 15 | 超链接 | URL 字段 | 否 |
+| 17 | 附件 | 图片、文件 | 否 |
+| 18 | 单向关联 | 关联其他表的记录 | 是 |
+| 19 | 查找引用 | 从关联表取值 | 是 |
+| 20 | 公式 | 计算字段 | 是 |
+
+### 单选 / 多选字段（type=3 或 4）必须传 `--property`
+
+```bash
+# 单选「严重等级」字段，预设 P0/P1/P2/P3 选项
+node ./bitable.js --open-id "ou_xxx" --action create_field \
+  --app-token "APP_TOKEN" --table-id "TABLE_ID" \
+  --name "严重等级" --field-type 3 \
+  --property '{"options":[{"name":"P0"},{"name":"P1"},{"name":"P2"},{"name":"P3"}]}'
+
+# 单选「状态」字段
+node ./bitable.js --open-id "ou_xxx" --action create_field \
+  --app-token "APP_TOKEN" --table-id "TABLE_ID" \
+  --name "状态" --field-type 3 \
+  --property '{"options":[{"name":"待处理"},{"name":"处理中"},{"name":"已完成"},{"name":"已关闭"}]}'
+```
+
+> ⚠️ **创建单选/多选字段时若未传 `--property`，字段会变成空选项的下拉，用户后续无法正常使用。** 用户提到「等级」「状态」「优先级」「类别」等词时，**主动预设合理选项值**，不要只创建空字段。
+
+### 人员字段（type=11）
+
+人员字段不需要 `--property`，但用户提到「负责人」「协作者」「审核人」时应使用 type=11，**不要**用 type=1（文本）。
 
 ## 记录操作
 
@@ -102,6 +159,27 @@ node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id
 ## 权限不足时（应用级）
 
 若返回中包含 `"auth_type":"tenant"`，说明需要管理员在飞书开放平台开通应用权限，**必须将 `reply` 字段内容原样发送给用户**。
+
+## 错误处理决策树（不要无脑重试）
+
+| 返回内容 | 含义 | 正确动作 |
+|---|---|---|
+| `{"error":"missing_param"}` | 命令缺少必填参数 | 检查命令拼写，**不要**重新执行；必要时向用户补充 |
+| `{"error":"invalid_param"}` | 参数值非法（如 field-type 不存在） | 检查取值，**不要**重试相同命令 |
+| `{"error":"auth_required"}` | 用户未授权 | 走"一次性申请全套权限"流程 |
+| `{"error":"permission_required"}` | scope 不足 | 用返回的 `required_scopes` 重新授权一次，之后不要再补 |
+| `{"error":"api_error","message":"...code=1254XXX..."}` | bitable 业务错误（如表/字段不存在、字段不匹配等） | **先读 message 文本理解原因**，对应修复后再调用；不要无脑重试相同请求 |
+| `{"error":"api_error","message":"...code=99991663..."}` | token 失效 | 重新授权 |
+| 重复创建报错（已存在） | 同名资源已存在 | **先用 list_tables / list_fields 找现有 ID，复用而非新建** |
+
+> **核心原则**：错误返回后**先读 message，再决定下一步**。失败的命令重试 2 次以上一定有问题，停下来分析。
+
+## 创建前必须先检查（避免重复创建）
+
+- **创建多维表格应用**（`create_app`）前：先用 feishu-search-doc / feishu-drive 在目标文件夹下查找同名应用，存在则直接复用 `app_token`
+- **创建数据表**（`create_table`）前：先 `list_tables` 查看是否已有同名表
+- **创建字段**（`create_field`）前：先 `list_fields` 查看是否已有同名字段
+- **创建记录** 不需要预检查，但批量创建时同一批次内不要有重复
 
 ## 禁止事项
 

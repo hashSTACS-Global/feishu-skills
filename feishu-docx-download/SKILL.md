@@ -1,9 +1,9 @@
 ---
 name: feishu-docx-download
 description: |
-  从飞书云盘或 Wiki 下载文件附件并提取正文文本，支持 docx/doc/pdf/pptx/ppt/xlsx/xls/html/rtf/epub/txt/csv 等格式。
-  支持 /wiki/ 和 /file/ 两种链接。在线云文档请用 feishu-fetch-doc。
-overrides: feishu_wiki_space_node, feishu_drive_file, feishu_pre_auth
+  下载并提取**附件文件**正文：Word(.docx/.doc)、PDF、PPT(.pptx/.ppt)、Excel(.xlsx/.xls)、html/rtf/epub/txt/csv 等。
+  仅处理云盘文件 (`/file/`) 和 Wiki 附件 (`/wiki/` 中 obj_type=file)。**飞书在线云文档（URL 含 `/docx/` `/docs/`）请用 feishu-fetch-doc。**
+overrides: feishu_drive_file, feishu_pre_auth
 inline: true
 ---
 
@@ -20,13 +20,38 @@ inline: true
 | 含 `/wiki/`，`obj_type` 为 `file` | Wiki 附件 | **使用本技能** ✓ |
 | 含 `/file/` | 云盘文件 | **使用本技能** ✓ |
 
+## 上下游工作流
+
+### 上游：用户没给 URL 或 file_token 时（不要直接询问用户）
+
+如果用户只描述「云盘里的 Word 文件」「我那个 PDF」等模糊请求，**必须先调用 feishu-drive 查找**，从结果中拿到 `file_token`：
+
+```bash
+# 列出云盘根目录或指定文件夹
+node ../feishu-drive/drive.js --open-id "SENDER_OPEN_ID" --action list
+
+# 或按名称搜索
+node ../feishu-search-doc/search-doc.js --open-id "SENDER_OPEN_ID" --query "文件名关键词"
+```
+
+从结果中筛选出附件类型的文件（type 为 `file`、扩展名为 .docx/.pdf/.xlsx 等），取 `token` 字段传给本技能。
+
+### 下游：提取文本后写入新文档
+
+提取出的纯文本通常是为了写入新文档。**正确做法**：分两步执行，先把 `extract.js` 的输出读进来，再作为 `feishu-create-doc` 的 `--markdown` 参数传入：
+
+1. 第一步：执行 `node ./extract.js "<filepath>"`，把 stdout 完整捕获为文本变量
+2. 第二步：执行 `node ../feishu-create-doc/create-doc.js --open-id "..." --title "..." --markdown "<上一步的文本>"`，传参时对内容做必要的 shell 转义
+
+> ⚠️ **不要用 `$(...)` shell 命令替换**：提取的文本常含双引号、`$`、反引号、换行等字符，会破坏 shell 解析；大文档还可能超过 argv 长度上限；Windows shell 也不支持该语法。务必先把内容捕获到变量再传参。
+
 ## 执行前确认
 
 **以下参数缺失或含糊时，必须先向用户询问，不得猜测或使用默认值：**
 
 | 参数 | 何时需要询问 |
 |---|---|
-| `--url` / `--file-token` | 用户未提供飞书链接或 file token |
+| `--url` / `--file-token` | 用户未提供飞书链接或 file token，**且通过 feishu-drive / feishu-search-doc 也无法定位**时 |
 
 ## 步骤 1 — 下载文件
 

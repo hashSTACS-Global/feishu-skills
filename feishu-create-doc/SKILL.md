@@ -10,6 +10,35 @@ inline: true
 
 直接用 `exec` 执行，不要检查文件或环境。
 
+## 常见上游
+
+`--markdown` 入参可以来自其它技能的输出：
+
+| 上游技能 | 用途 |
+|---|---|
+| **feishu-docx-download** + `extract.js` | 把云盘里的 Word/PDF/PPT/Excel 等附件文件提取为纯文本，再写入新建的飞书文档 |
+| **feishu-fetch-doc** | 把已有的飞书在线云文档内容（markdown 字段）作为新文档初始内容 |
+| 用户消息 / 其它任意来源 | 直接传 `--markdown "..."` |
+
+> 典型工作流：`feishu-drive list` → `feishu-docx-download` 下载并提取 → **feishu-create-doc** 创建新文档并写入提取的内容。
+
+## 一次性创建 + 写入（禁止 create 后再 update）
+
+⛔ **禁止**先创建空文档再调用 `feishu-update-doc` 写入内容。`create-doc.js` 的 `--markdown` 参数支持创建时直接写入完整内容，**一次 API 调用即可完成**。
+
+```bash
+# ✅ 正确：创建时一次性传入内容
+node ./create-doc.js --open-id "SENDER_OPEN_ID" --title "文档标题" --markdown "## 第一章\n内容..."
+
+# ❌ 错误：分两步（多余 API 调用，标题/内容易不一致）
+node ./create-doc.js --open-id "SENDER_OPEN_ID" --title "文档标题"
+node ../feishu-update-doc/update-doc.js --doc-id "TOKEN" --mode append --markdown "..."
+```
+
+只有在以下情况才用 `feishu-update-doc`：
+- 修改/追加**已存在**的文档（不是本次新建的）
+- 创建后**用户后续要求**追加新内容
+
 ## 标题与回复格式（必须遵守）
 
 - **`--title` 必须与用户给出的标题逐字一致**（含下划线 `_`、空格、中英文括号等）。禁止擅自「美化」或改写标题。

@@ -1,8 +1,9 @@
 ---
 name: feishu-fetch-doc
 description: |
-  获取飞书云文档内容，返回 Markdown 格式。
-overrides: feishu_fetch_doc, feishu_pre_auth
+  读取**飞书在线云文档**（URL 含 `/docx/` 或 `/docs/`，或 Wiki 节点 obj_type=docx/doc）内容，返回 Markdown。
+  **不处理云盘附件文件**（Word .docx/PDF/Excel 等二进制文件）—— 那种请用 feishu-docx-download。
+overrides: feishu_fetch_doc, feishu_wiki_space_node, feishu_pre_auth
 inline: true
 ---
 
@@ -17,6 +18,18 @@ node ./fetch-doc.js --open-id "SENDER_OPEN_ID" --doc-id "文档TOKEN或URL"
 ```
 
 若为 wiki 链接，加 `--wiki`。脚本自动从 URL 解析 token。
+
+## 适用范围（先判断再调用）
+
+| 用户描述 | 是否用本技能 |
+|---|---|
+| 「读取这个文档」+ URL 含 `/docx/` 或 `/docs/` | ✅ 用本技能 |
+| 「读取 wiki 文档」+ Wiki 节点 obj_type=docx/doc | ✅ 用本技能 |
+| 「读取/下载云盘里的 Word/PDF/Excel 文件」 | ❌ 用 **feishu-docx-download** |
+| 「读取我那个 .docx / .pdf 文件」 | ❌ 用 **feishu-docx-download** |
+| Wiki 节点 obj_type=file（附件文件） | ❌ 用 **feishu-docx-download** |
+
+> ⚠️ **「Word 文档」≠ 飞书在线 docx**：用户说"Word 文档"通常指 .docx 二进制文件（云盘附件），应走 feishu-docx-download。
 
 ## 用户只提供文档标题时
 
