@@ -8,6 +8,22 @@
 
 ---
 
+## 30 秒接入飞书
+
+> **告别手动创建应用。** 飞书扫一次码，Bot 自动创建并配置完成。
+
+安装技能包后，只需对 Agent 说：
+
+```
+帮我配置飞书插件
+```
+
+Agent 会生成一个二维码链接 → 你用飞书扫码确认 → Bot 凭据自动写入 OpenClaw 配置。搞定。
+
+详见 [feishu-quick-setup](#包含的技能)。
+
+---
+
 ## 安装
 
 ```bash
@@ -22,6 +38,7 @@ node install.js
 
 | 技能 | 说明 |
 |---|---|
+| **feishu-quick-setup** | 一键配置飞书插件 —— 扫码自动创建 Bot 并写入 OpenClaw 配置 |
 | **feishu-auth** | OAuth Device Flow 授权中枢，被所有其他技能共享 |
 | **feishu-create-doc** | 使用 Markdown 内容创建飞书云文档 |
 | **feishu-fetch-doc** | 读取飞书云文档 / Wiki 页面 |

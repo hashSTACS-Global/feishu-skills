@@ -8,6 +8,7 @@ inline: true
 ---
 
 # feishu-image-ocr
+> **模块兼容**：所有脚本均提供 `.js` 和 `.mjs` 两个版本。优先使用 `.js`，若报 `require is not defined` 错误则改用同名 `.mjs` 文件。
 
 通用图片 OCR 文字识别。调用飞书 OCR API，中英文效果好，纯 Node.js，零额外依赖。
 使用应用级 tenant_access_token，**无需用户授权**，只要飞书应用开通了 `ai:image_sentence` 权限即可直接使用。

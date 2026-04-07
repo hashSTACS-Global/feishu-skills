@@ -7,6 +7,7 @@ inline: true
 ---
 
 # feishu-auth
+> **模块兼容**：所有脚本均提供 `.js` 和 `.mjs` 两个版本。优先使用 `.js`，若报 `require is not defined` 错误则改用同名 `.mjs` 文件。
 
 为用户完成飞书个人 OAuth 授权。
 
