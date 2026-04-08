@@ -29,6 +29,12 @@ node ./task.js --open-id "ou_xxx" --action remove_followers --task-id "ID" --fol
 
 `--members` 为执行人（assignee），`--followers` 为关注人（follower），创建任务时可同时指定。
 
+**返回字段说明：**
+
+- `create_task`：返回 `task`、`url`（任务链接）、`reply`。**返回后必须将 `url` 作为任务链接展示给用户。**
+- `list_tasks`：返回 `tasks` 数组，每个任务含 `url` 字段；`reply` 已包含每条任务的链接，直接展示给用户。
+- `update_task`：返回 `task`、`url`（任务链接）、`reply`。若 `url` 非空，**必须将链接展示给用户**。
+
 ## 任务清单
 
 ```bash

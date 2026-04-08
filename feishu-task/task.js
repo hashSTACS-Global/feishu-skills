@@ -138,7 +138,15 @@ async function listTasks(args, token) {
   if (args.completed) query.completed = args.completed;
   const data = await apiCall('GET', '/task/v2/tasks', token, null, query);
   if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
-  out({ tasks: data.data?.items || [], has_more: data.data?.has_more, page_token: data.data?.page_token });
+  const tasks = data.data?.items || [];
+  const reply = tasks.length === 0
+    ? '暂无任务'
+    : tasks.map(t => {
+        const status = t.completed_at && t.completed_at !== '0' ? '✅' : '⬜';
+        const line = `${status} ${t.summary || '(无标题)'}`;
+        return t.url ? `${line}\n   ${t.url}` : line;
+      }).join('\n');
+  out({ tasks, has_more: data.data?.has_more, page_token: data.data?.page_token, reply });
 }
 
 async function updateTask(args, token) {
@@ -155,8 +163,11 @@ async function updateTask(args, token) {
   const body = { task, update_fields };
   const data = await apiCall('PATCH', `/task/v2/tasks/${args.taskId}`, token, body, { user_id_type: 'open_id' });
   if (data.code !== 0) throw new Error(`code=${data.code} msg=${data.msg}`);
-  const reply = args.completed === 'true' ? '任务已完成' : args.completed === 'false' ? '任务已恢复为未完成' : '任务已更新';
-  out({ task: data.data?.task, reply });
+  const updatedTask = data.data?.task;
+  const taskUrl = updatedTask?.url || null;
+  const replyBase = args.completed === 'true' ? '任务已完成' : args.completed === 'false' ? '任务已恢复为未完成' : '任务已更新';
+  const reply = taskUrl ? `${replyBase}\n任务链接：${taskUrl}` : replyBase;
+  out({ task: updatedTask, url: taskUrl, reply });
 }
 
 async function addTaskMembers(args, token) {
