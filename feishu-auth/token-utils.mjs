@@ -245,15 +245,19 @@ function tryLoadOpenClawConfig() {
 // ---------------------------------------------------------------------------
 
 async function refreshAccessToken(appId, appSecret, refreshToken) {
+  // Use the same OAuth token endpoint as Device Flow (compatible with openclaw-lark)
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    client_id: appId,
+    client_secret: appSecret,
+  });
   const res = await fetch(
-    'https://open.feishu.cn/open-apis/authen/v2/oidc/refresh_access_token',
+    'https://open.feishu.cn/open-apis/authen/v2/oauth/token',
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Basic ' + Buffer.from(`${appId}:${appSecret}`).toString('base64'),
-      },
-      body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: refreshToken }),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
     },
   );
   const rawText = await res.text();
@@ -261,8 +265,12 @@ async function refreshAccessToken(appId, appSecret, refreshToken) {
   try { data = JSON.parse(rawText); } catch (e) {
     throw new Error(`Token refresh non-JSON (HTTP ${res.status}): ${rawText.slice(0, 300)}`);
   }
-  if (data.code !== 0) throw new Error(`Token refresh failed: code=${data.code} msg=${data.msg}`);
-  return data.data;
+  // OAuth token endpoint returns fields at top level (not nested in data)
+  const error = data.error;
+  if (error) throw new Error(`Token refresh failed: error=${error} desc=${data.error_description || ''}`);
+  if (data.code !== undefined && data.code !== 0) throw new Error(`Token refresh failed: code=${data.code} msg=${data.msg}`);
+  // Return top-level fields directly (access_token, refresh_token, expires_in, etc.)
+  return data;
 }
 
 async function tryDeviceCodeExchange(appId, appSecret, deviceCode) {
@@ -324,16 +332,23 @@ async function getValidToken(openId, appId, appSecret) {
   if (refreshToken && now < refreshExpiresAt) {
     try {
       const refreshed = await refreshAccessToken(appId, appSecret, refreshToken);
+      const newRefreshExpiresAt = refreshed.refresh_token_expires_in
+        ? now + refreshed.refresh_token_expires_in * 1000
+        : refreshExpiresAt; // preserve original if API doesn't return new value
       saveToken(openId, appId, {
         accessToken:      refreshed.access_token,
         refreshToken:     refreshed.refresh_token ?? refreshToken,
-        expiresAt:        now + refreshed.expires_in * 1000,
-        refreshExpiresAt: now + (refreshed.refresh_expires_in ?? 2592000) * 1000,
+        expiresAt:        now + (refreshed.expires_in ?? 7200) * 1000,
+        refreshExpiresAt: newRefreshExpiresAt,
         scope:            refreshed.scope ?? token.scope,
         grantedAt:        token.grantedAt ?? token.granted_at,
       });
+      process.stderr.write(`[token-utils] refreshed token for ${openId}\n`);
       return refreshed.access_token;
-    } catch { return null; }
+    } catch (err) {
+      process.stderr.write(`[token-utils] refresh failed for ${openId}: ${err.message}\n`);
+      return null;
+    }
   }
 
   return null;
