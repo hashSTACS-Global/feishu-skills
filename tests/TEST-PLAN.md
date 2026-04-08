@@ -86,7 +86,7 @@ EnClaws/test/feishu-simulator/test-data/
 create-doc.json       fetch-doc.json       search-doc.json      update-doc.json
 calendar.json         task.json            chat.json            search-user.json
 im-read.json          drive.json           sheet.json           wiki.json
-bitable.json          docx-download.json   image-ocr.json       orchestration.json
+bitables.json          docx-download.json   image-ocr.json       orchestration.json
 ```
 
 ## 用例覆盖统计

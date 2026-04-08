@@ -202,7 +202,7 @@ feishu-skills/
 │   └── task.js
 ├── feishu-bitable/
 │   ├── SKILL.md
-│   └── bitable.js
+│   └── bitables.js
 ├── feishu-docx-download/
 │   ├── SKILL.md
 │   ├── download-doc.js

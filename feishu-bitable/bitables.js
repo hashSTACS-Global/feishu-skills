@@ -3,7 +3,7 @@
  * feishu-bitable: Feishu Bitable (multi-dimensional table) management via user OAuth.
  *
  * Usage:
- *   node bitable.js --action <action> --open-id <open_id> [options]
+ *   node bitables.js --action <action> --open-id <open_id> [options]
  *
  * App:    create_app, get_app, list_apps, copy_app, update_app
  * Table:  create_table, list_tables, delete_table, update_table, batch_create_tables, batch_delete_tables

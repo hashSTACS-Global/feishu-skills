@@ -13,8 +13,8 @@ inline: true
 
 ## 执行环境
 
-- 所有 `node ./bitable.js` 命令的相对路径基准点是本 SKILL.md 所在目录（`feishu-bitable/`）
-- harness 通常已自动设置正确 cwd，**无需手动 cd**；若执行报 `Cannot find module`，再考虑加绝对路径
+- 所有 `node ./bitables.js` 命令的相对路径基准点是本 SKILL.md 所在目录（`feishu-bitable/`）
+- harness 通常已自动设置正确 cwd，**无需手动 cd**
 - 跨技能调用使用 `node ../feishu-auth/auth.js` 这样的相对路径即可
 
 ## 一次性申请全套权限（避免反复触发授权）
@@ -28,35 +28,35 @@ node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id
 
 之后所有 bitable 操作都用同一个 token，不需要再次授权。
 
-基础命令: `node ./bitable.js --open-id "SENDER_OPEN_ID"`
+基础命令: `node ./bitables.js --open-id "SENDER_OPEN_ID"`
 
 ## 应用操作
 
 ```bash
-node ./bitable.js --open-id "ou_xxx" --action create_app --name "应用名称" --folder-token "FOLDER_TOKEN"
-node ./bitable.js --open-id "ou_xxx" --action get_app --app-token "APP_TOKEN"
-node ./bitable.js --open-id "ou_xxx" --action update_app --app-token "APP_TOKEN" --name "新名称"
-node ./bitable.js --open-id "ou_xxx" --action copy_app --app-token "APP_TOKEN" --name "副本名称" --folder-token "FOLDER_TOKEN"
+node ./bitables.js --open-id "ou_xxx" --action create_app --name "应用名称" --folder-token "FOLDER_TOKEN"
+node ./bitables.js --open-id "ou_xxx" --action get_app --app-token "APP_TOKEN"
+node ./bitables.js --open-id "ou_xxx" --action update_app --app-token "APP_TOKEN" --name "新名称"
+node ./bitables.js --open-id "ou_xxx" --action copy_app --app-token "APP_TOKEN" --name "副本名称" --folder-token "FOLDER_TOKEN"
 ```
 
 ## 数据表操作
 
 ```bash
-node ./bitable.js --open-id "ou_xxx" --action create_table --app-token "APP_TOKEN" --name "表名"
-node ./bitable.js --open-id "ou_xxx" --action list_tables --app-token "APP_TOKEN"
-node ./bitable.js --open-id "ou_xxx" --action update_table --app-token "APP_TOKEN" --table-id "TABLE_ID" --name "新表名"
-node ./bitable.js --open-id "ou_xxx" --action delete_table --app-token "APP_TOKEN" --table-id "TABLE_ID"
-node ./bitable.js --open-id "ou_xxx" --action batch_create_tables --app-token "APP_TOKEN" --table-names '[{"name":"表1"},{"name":"表2"}]'
-node ./bitable.js --open-id "ou_xxx" --action batch_delete_tables --app-token "APP_TOKEN" --table-ids "tblXXX,tblYYY"
+node ./bitables.js --open-id "ou_xxx" --action create_table --app-token "APP_TOKEN" --name "表名"
+node ./bitables.js --open-id "ou_xxx" --action list_tables --app-token "APP_TOKEN"
+node ./bitables.js --open-id "ou_xxx" --action update_table --app-token "APP_TOKEN" --table-id "TABLE_ID" --name "新表名"
+node ./bitables.js --open-id "ou_xxx" --action delete_table --app-token "APP_TOKEN" --table-id "TABLE_ID"
+node ./bitables.js --open-id "ou_xxx" --action batch_create_tables --app-token "APP_TOKEN" --table-names '[{"name":"表1"},{"name":"表2"}]'
+node ./bitables.js --open-id "ou_xxx" --action batch_delete_tables --app-token "APP_TOKEN" --table-ids "tblXXX,tblYYY"
 ```
 
 ## 字段操作
 
 ```bash
-node ./bitable.js --open-id "ou_xxx" --action create_field --app-token "APP_TOKEN" --table-id "TABLE_ID" --name "字段名" --field-type 1
-node ./bitable.js --open-id "ou_xxx" --action list_fields --app-token "APP_TOKEN" --table-id "TABLE_ID"
-node ./bitable.js --open-id "ou_xxx" --action update_field --app-token "APP_TOKEN" --table-id "TABLE_ID" --field-id "FIELD_ID" --name "新字段名"
-node ./bitable.js --open-id "ou_xxx" --action delete_field --app-token "APP_TOKEN" --table-id "TABLE_ID" --field-id "FIELD_ID"
+node ./bitables.js --open-id "ou_xxx" --action create_field --app-token "APP_TOKEN" --table-id "TABLE_ID" --name "字段名" --field-type 1
+node ./bitables.js --open-id "ou_xxx" --action list_fields --app-token "APP_TOKEN" --table-id "TABLE_ID"
+node ./bitables.js --open-id "ou_xxx" --action update_field --app-token "APP_TOKEN" --table-id "TABLE_ID" --field-id "FIELD_ID" --name "新字段名"
+node ./bitables.js --open-id "ou_xxx" --action delete_field --app-token "APP_TOKEN" --table-id "TABLE_ID" --field-id "FIELD_ID"
 ```
 
 ### `--field-type` 类型编号（必须按用户语义选择正确类型）
@@ -81,13 +81,13 @@ node ./bitable.js --open-id "ou_xxx" --action delete_field --app-token "APP_TOKE
 
 ```bash
 # 单选「严重等级」字段，预设 P0/P1/P2/P3 选项
-node ./bitable.js --open-id "ou_xxx" --action create_field \
+node ./bitables.js --open-id "ou_xxx" --action create_field \
   --app-token "APP_TOKEN" --table-id "TABLE_ID" \
   --name "严重等级" --field-type 3 \
   --property '{"options":[{"name":"P0"},{"name":"P1"},{"name":"P2"},{"name":"P3"}]}'
 
 # 单选「状态」字段
-node ./bitable.js --open-id "ou_xxx" --action create_field \
+node ./bitables.js --open-id "ou_xxx" --action create_field \
   --app-token "APP_TOKEN" --table-id "TABLE_ID" \
   --name "状态" --field-type 3 \
   --property '{"options":[{"name":"待处理"},{"name":"处理中"},{"name":"已完成"},{"name":"已关闭"}]}'
@@ -102,23 +102,23 @@ node ./bitable.js --open-id "ou_xxx" --action create_field \
 ## 记录操作
 
 ```bash
-node ./bitable.js --open-id "ou_xxx" --action create_record --app-token "APP_TOKEN" --table-id "TABLE_ID" --fields '{"字段名":"值"}'
-node ./bitable.js --open-id "ou_xxx" --action list_records --app-token "APP_TOKEN" --table-id "TABLE_ID"
-node ./bitable.js --open-id "ou_xxx" --action update_record --app-token "APP_TOKEN" --table-id "TABLE_ID" --record-id "RECORD_ID" --fields '{"字段名":"新值"}'
-node ./bitable.js --open-id "ou_xxx" --action delete_record --app-token "APP_TOKEN" --table-id "TABLE_ID" --record-id "RECORD_ID"
-node ./bitable.js --open-id "ou_xxx" --action batch_create_records --app-token "APP_TOKEN" --table-id "TABLE_ID" --records '[{"fields":{"字段名":"值1"}}]'
-node ./bitable.js --open-id "ou_xxx" --action batch_update_records --app-token "APP_TOKEN" --table-id "TABLE_ID" --records '[{"record_id":"recXXX","fields":{"字段名":"新值"}}]'
-node ./bitable.js --open-id "ou_xxx" --action batch_delete_records --app-token "APP_TOKEN" --table-id "TABLE_ID" --record-ids "recXXX,recYYY"
+node ./bitables.js --open-id "ou_xxx" --action create_record --app-token "APP_TOKEN" --table-id "TABLE_ID" --fields '{"字段名":"值"}'
+node ./bitables.js --open-id "ou_xxx" --action list_records --app-token "APP_TOKEN" --table-id "TABLE_ID"
+node ./bitables.js --open-id "ou_xxx" --action update_record --app-token "APP_TOKEN" --table-id "TABLE_ID" --record-id "RECORD_ID" --fields '{"字段名":"新值"}'
+node ./bitables.js --open-id "ou_xxx" --action delete_record --app-token "APP_TOKEN" --table-id "TABLE_ID" --record-id "RECORD_ID"
+node ./bitables.js --open-id "ou_xxx" --action batch_create_records --app-token "APP_TOKEN" --table-id "TABLE_ID" --records '[{"fields":{"字段名":"值1"}}]'
+node ./bitables.js --open-id "ou_xxx" --action batch_update_records --app-token "APP_TOKEN" --table-id "TABLE_ID" --records '[{"record_id":"recXXX","fields":{"字段名":"新值"}}]'
+node ./bitables.js --open-id "ou_xxx" --action batch_delete_records --app-token "APP_TOKEN" --table-id "TABLE_ID" --record-ids "recXXX,recYYY"
 ```
 
 ## 视图操作
 
 ```bash
-node ./bitable.js --open-id "ou_xxx" --action create_view --app-token "APP_TOKEN" --table-id "TABLE_ID" --name "视图名" --view-type "grid"
-node ./bitable.js --open-id "ou_xxx" --action list_views --app-token "APP_TOKEN" --table-id "TABLE_ID"
-node ./bitable.js --open-id "ou_xxx" --action get_view --app-token "APP_TOKEN" --table-id "TABLE_ID" --view-id "VIEW_ID"
-node ./bitable.js --open-id "ou_xxx" --action update_view --app-token "APP_TOKEN" --table-id "TABLE_ID" --view-id "VIEW_ID" --name "新视图名"
-node ./bitable.js --open-id "ou_xxx" --action delete_view --app-token "APP_TOKEN" --table-id "TABLE_ID" --view-id "VIEW_ID"
+node ./bitables.js --open-id "ou_xxx" --action create_view --app-token "APP_TOKEN" --table-id "TABLE_ID" --name "视图名" --view-type "grid"
+node ./bitables.js --open-id "ou_xxx" --action list_views --app-token "APP_TOKEN" --table-id "TABLE_ID"
+node ./bitables.js --open-id "ou_xxx" --action get_view --app-token "APP_TOKEN" --table-id "TABLE_ID" --view-id "VIEW_ID"
+node ./bitables.js --open-id "ou_xxx" --action update_view --app-token "APP_TOKEN" --table-id "TABLE_ID" --view-id "VIEW_ID" --name "新视图名"
+node ./bitables.js --open-id "ou_xxx" --action delete_view --app-token "APP_TOKEN" --table-id "TABLE_ID" --view-id "VIEW_ID"
 ```
 
 ## 查看表格结构（数据表 + 字段）
