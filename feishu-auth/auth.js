@@ -328,8 +328,9 @@ async function authAndPoll(openId, chatId, cfg, timeoutMs, extraScopesStr) {
       const missing = requested.filter(s => !currentScopes.has(s));
       if (missing.length > 0) {
         process.stderr.write(`[auth-and-poll] token missing scopes: ${missing.join(', ')} — re-authorizing\n`);
-        // Fall through to re-authorize with merged scopes
-        deleteToken(openId, cfg.appId);
+        // Fall through to re-authorize with merged scopes.
+        // Do NOT delete the old token here — keep it usable until the new
+        // authorization succeeds and saveToken overwrites the file.
       } else {
         out({ status: 'authorized', message: '用户已授权，且权限充足' });
         return;
