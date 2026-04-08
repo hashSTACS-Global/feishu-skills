@@ -32,7 +32,7 @@ node ./task.js --open-id "ou_xxx" --action remove_followers --task-id "ID" --fol
 **返回字段说明：**
 
 - `create_task`：返回 `task`、`url`（任务链接）、`reply`。**返回后必须将 `url` 作为任务链接展示给用户。**
-- `list_tasks`：返回 `tasks` 数组，每个任务含 `url` 字段；`reply` 已包含每条任务的链接，直接展示给用户。
+- `list_tasks`：返回 `tasks` 数组，每个任务含 `summary`（标题）、`due.timestamp`（截止时间戳，毫秒）、`url`（任务链接）、`completed_at`（完成时间）。**展示时必须列出：任务标题、截止日期（转为可读格式）、任务链接。**
 - `update_task`：返回 `task`、`url`（任务链接）、`reply`。若 `url` 非空，**必须将链接展示给用户**。
 
 ## 任务清单
