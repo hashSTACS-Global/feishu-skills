@@ -26,6 +26,8 @@ node ./calendar.js --open-id "ou_xxx" --action create_event --summary "标题" -
 node ./calendar.js --open-id "ou_xxx" --action create_event --summary "早会" --start-time "ISO8601" --end-time "ISO8601" --repeat daily
 node ./calendar.js --open-id "ou_xxx" --action create_event --summary "周会" --start-time "ISO8601" --end-time "ISO8601" --repeat weekly
 node ./calendar.js --open-id "ou_xxx" --action create_event --summary "月会" --start-time "ISO8601" --end-time "ISO8601" --repeat monthly
+# 开启自动录制
+node ./calendar.js --open-id "ou_xxx" --action create_event --summary "标题" --start-time "ISO8601" --end-time "ISO8601" --auto-record
 # 查询日程（不传时间范围则默认查今天，已取消的日程默认隐藏）
 node ./calendar.js --open-id "ou_xxx" --action list_events
 # 查询指定日期范围
@@ -38,7 +40,10 @@ node ./calendar.js --open-id "ou_xxx" --action delete_event --event-id "ID"
 node ./calendar.js --open-id "ou_xxx" --action search_events --query "关键词"
 ```
 
-可选：`--description` `--location` `--all-day`（全天时时间用日期格式）
+可选：`--description` `--location` `--all-day`（全天时时间用日期格式） `--auto-record`（自动录制）
+
+- `--auto-record`：开启后会议开始时自动录制
+- ⚠️ 飞书日历 API **不支持**通过创建日程关联飞书群，`--chat-id` 仅用于忙闲查询按姓名匹配群成员
 
 `--repeat` 可选值：`daily`（每天）、`weekly`（每周）、`monthly`（每月）、`workdays`（工作日）
 

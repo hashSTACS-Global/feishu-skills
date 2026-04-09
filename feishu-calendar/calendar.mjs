@@ -36,7 +36,7 @@ function parseArgs() {
     userIds: null, names: null, chatId: null,
     startMin: null, startMax: null,
     isAllDay: false, recurrence: null, repeat: null, reminder: null,
-    needAttendee: false, showCancelled: false,
+    needAttendee: false, showCancelled: false, autoRecord: false,
   };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -64,6 +64,7 @@ function parseArgs() {
       case '--names':        r.names        = argv[++i]; break;
       case '--chat-id':      r.chatId       = argv[++i]; break;
       case '--show-cancelled': r.showCancelled = true; break;
+      case '--auto-record':    r.autoRecord    = true; break;
     }
   }
   return r;
@@ -240,7 +241,12 @@ async function createEvent(args, token) {
     end_time: args.isAllDay
       ? { date: args.endTime }
       : { timestamp: toTimestamp(args.endTime), timezone: args.timeZone },
-    vchat: { vc_type: 'vc' },
+    vchat: {
+      vc_type: 'vc',
+      ...(args.autoRecord && {
+        meeting_settings: { auto_record: true },
+      }),
+    },
     reminders: [{ minutes: 15 }],
   };
   const rrule = resolveRecurrence(args);
@@ -270,6 +276,7 @@ async function createEvent(args, token) {
       event = getData.data.event;
     }
   }
+
 
   // Strip app_link from event output — it's an internal deep link that doesn't open in browser
   if (event?.app_link) delete event.app_link;
