@@ -35,6 +35,7 @@ const SKILLS = [
   'feishu-search-user',
   'feishu-sheet',
   'feishu-wiki',
+  'feishu-meeting-minutes',
 ];
 
 // Files/dirs to exclude when copying
