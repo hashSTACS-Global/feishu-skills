@@ -22,10 +22,12 @@ node ./calendar.js --open-id "ou_xxx" --action get_primary
 
 ```bash
 node ./calendar.js --open-id "ou_xxx" --action create_event --summary "标题" --start-time "ISO8601" --end-time "ISO8601" --attendees "ou_yyy,ou_zzz"
-# 重复会议（早会/周会/月会等）
-node ./calendar.js --open-id "ou_xxx" --action create_event --summary "早会" --start-time "ISO8601" --end-time "ISO8601" --repeat daily
-node ./calendar.js --open-id "ou_xxx" --action create_event --summary "周会" --start-time "ISO8601" --end-time "ISO8601" --repeat weekly
-node ./calendar.js --open-id "ou_xxx" --action create_event --summary "月会" --start-time "ISO8601" --end-time "ISO8601" --repeat monthly
+# 重复会议（早会/周会/月会等）— 默认自动创建会议群
+node ./calendar.js --open-id "ou_xxx" --action create_event --summary "早会" --start-time "ISO8601" --end-time "ISO8601" --repeat daily --attendees "ou_xxx,ou_yyy"
+node ./calendar.js --open-id "ou_xxx" --action create_event --summary "周会" --start-time "ISO8601" --end-time "ISO8601" --repeat weekly --attendees "ou_xxx,ou_yyy"
+node ./calendar.js --open-id "ou_xxx" --action create_event --summary "月会" --start-time "ISO8601" --end-time "ISO8601" --repeat monthly --attendees "ou_xxx,ou_yyy"
+# 重复会议但不创建会议群
+node ./calendar.js --open-id "ou_xxx" --action create_event --summary "早会" --start-time "ISO8601" --end-time "ISO8601" --repeat daily --no-meeting-chat
 # 开启自动录制
 node ./calendar.js --open-id "ou_xxx" --action create_event --summary "标题" --start-time "ISO8601" --end-time "ISO8601" --auto-record
 # 查询日程（不传时间范围则默认查今天，已取消的日程默认隐藏）
@@ -43,7 +45,9 @@ node ./calendar.js --open-id "ou_xxx" --action search_events --query "关键词"
 可选：`--description` `--location` `--all-day`（全天时时间用日期格式） `--auto-record`（自动录制）
 
 - `--auto-record`：开启后会议开始时自动录制
-- ⚠️ 飞书日历 API **不支持**通过创建日程关联飞书群，`--chat-id` 仅用于忙闲查询按姓名匹配群成员
+- 重复会议（`--repeat` 或 `--recurrence`）**默认自动创建会议群**，群内包含所有参与人。传 `--no-meeting-chat` 可跳过
+- 创建会议群要求：日程至少 2 个参与人且不隐藏参与人列表。不满足条件时静默跳过
+- `--chat-id` 仅用于忙闲查询按姓名匹配群成员
 
 `--repeat` 可选值：`daily`（每天）、`weekly`（每周）、`monthly`（每月）、`workdays`（工作日）
 

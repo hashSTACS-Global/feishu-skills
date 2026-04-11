@@ -39,6 +39,7 @@ function parseArgs() {
     startMin: null, startMax: null,
     isAllDay: false, recurrence: null, repeat: null, reminder: null,
     needAttendee: false, showCancelled: false, autoRecord: false,
+    noMeetingChat: false,
   };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -67,6 +68,7 @@ function parseArgs() {
       case '--chat-id':      r.chatId       = argv[++i]; break;
       case '--show-cancelled': r.showCancelled = true; break;
       case '--auto-record':    r.autoRecord    = true; break;
+      case '--no-meeting-chat': r.noMeetingChat = true; break;
     }
   }
   return r;
@@ -252,13 +254,14 @@ async function createEvent(args, token) {
     reminders: [{ minutes: 15 }],
   };
   const rrule = resolveRecurrence(args);
-  if (rrule) body.recurrence = rrule;
-  if (args.location) body.location = { name: args.location };
-  if (args.attendees) {
-    body.attendees = args.attendees.split(',').map(id => ({
-      type: 'user', user_id: id.trim(), is_optional: false,
-    }));
+  if (rrule) {
+    body.recurrence = rrule;
+    // Meeting chat creation requires attendee list to be visible
+    if (!args.noMeetingChat) body.attendee_ability = 'can_see_others';
   }
+  if (args.location) body.location = { name: args.location };
+  // Don't put attendees in create body — use separate attendees API for reliable processing
+  const attendeeIds = args.attendees ? args.attendees.split(',').map(id => id.trim()) : [];
   const query = { user_id_type: 'open_id' };
   if (args.needAttendee) query.need_attendee = 'true';
   const data = await apiCall('POST', `/calendar/v4/calendars/${calId}/events`, token, body, query);
@@ -266,6 +269,14 @@ async function createEvent(args, token) {
 
   let event = data.data?.event;
   const eventId = event?.event_id;
+
+  // Add attendees via dedicated API — create event body attendees may not be fully processed
+  if (attendeeIds.length > 0 && eventId) {
+    const attBody = {
+      attendees: attendeeIds.map(id => ({ type: 'user', user_id: id, is_optional: false })),
+    };
+    await apiCall('POST', `/calendar/v4/calendars/${calId}/events/${eventId}/attendees`, token, attBody, { user_id_type: 'open_id' });
+  }
 
   // GET event to retrieve meeting URL — create response often lacks vchat details,
   // Feishu needs a moment to provision the video conference.
@@ -282,12 +293,25 @@ async function createEvent(args, token) {
   // Strip app_link from event output — it's an internal deep link that doesn't open in browser
   if (event?.app_link) delete event.app_link;
 
-  const vchatTip = meetingUrl
-    ? `\n视频会议链接：${meetingUrl}`
-    : '\n⚠️ 视频会议链接尚未生成，请稍后到飞书日历中查看。';
+  // Auto-create meeting chat for recurring events (default on, use --no-meeting-chat to skip)
+  let meetingChat = null;
+  let meetingChatWarning = null;
+  if (rrule && !args.noMeetingChat && eventId && attendeeIds.length >= 2) {
+    const actualCalId = event?.organizer_calendar_id || calId;
+    const chatData = await apiCall('POST', `/calendar/v4/calendars/${actualCalId}/events/${eventId}/meeting_chat`, token);
+    if (chatData.code === 0 && chatData.data) {
+      meetingChat = {
+        meeting_chat_id: chatData.data.meeting_chat_id,
+        applink: chatData.data.applink,
+      };
+    } else {
+      meetingChatWarning = `创建会议群失败: code=${chatData.code} msg=${chatData.msg}`;
+    }
+  }
 
   const summary = args.summary || '未命名日程';
-  const replyText = `日程「${summary}」已创建${rrule ? `（重复：${args.repeat || args.recurrence}）` : ''}`;
+  const meetingChatTip = meetingChat ? `\n会议群已创建` : '';
+  const replyText = `日程「${summary}」已创建${rrule ? `（重复：${args.repeat || args.recurrence}）` : ''}${meetingChatTip}`;
 
   // Send card to user if there's a meeting URL
   if (meetingUrl && args.openId) {
@@ -301,7 +325,7 @@ async function createEvent(args, token) {
     }).catch(() => {});
   }
 
-  out({ event, meeting_url: meetingUrl, reply: replyText });
+  out({ event, meeting_url: meetingUrl, ...(meetingChat && { meeting_chat: meetingChat }), ...(meetingChatWarning && { meeting_chat_warning: meetingChatWarning }), reply: replyText });
 }
 
 async function listEvents(args, token) {
