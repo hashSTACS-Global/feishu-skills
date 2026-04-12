@@ -184,8 +184,9 @@ if (!targetDir) {
   targetDir = detected.dir;
 }
 
-// Install into a feishu-skills subdirectory under the target skills dir
-const installDir = path.join(targetDir, 'feishu-skills');
+// Install skills directly under the target skills dir (no extra subdirectory,
+// so the LLM can reliably resolve skill paths as skills/<skill-name>).
+const installDir = targetDir;
 console.error(`[install] target directory: ${installDir} (detected env: ${detected?.env ?? 'custom'})`);
 
 const installed = [];
@@ -231,7 +232,12 @@ console.log(JSON.stringify({
   reply: `飞书技能安装完成！环境：${detected?.env ?? 'custom'}，路径：${installDir}。已安装：${installed.join(', ')}${updated.length ? `；已更新：${updated.join(', ')}` : ''}。`,
 }));
 
-// Clean up: remove the cloned repo directory (including this file) after install
-process.on('exit', () => {
-  try { removeRecursive(repoDir); } catch (_) {}
-});
+// Clean up: remove the cloned repo directory (including this file) after install,
+// but only if it is NOT the install target itself (avoid deleting installed skills).
+const repoAbs = path.resolve(repoDir);
+const installAbs = path.resolve(installDir);
+if (repoAbs !== installAbs && !repoAbs.startsWith(installAbs + path.sep) && !installAbs.startsWith(repoAbs + path.sep)) {
+  process.on('exit', () => {
+    try { removeRecursive(repoDir); } catch (_) {}
+  });
+}
