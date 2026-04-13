@@ -62,14 +62,16 @@ node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id
 
 机器人拿到消息 `content` 后，按下列规则判别，**严格按 kind 分派**，不要跨层调用：
 
-| 识别特征（content 正则） | kind | 后续动作 |
+| 识别特征 | kind | 后续动作 |
 |---|---|---|
-| `<folder\s+key="file_[^"]+"\s+name="[^"]+"/>` | `im_folder_attachment` | ❌ **不可读**。走下方"文件夹附件兜底"话术，**禁止**把 `file_v3_...` 当 folder_token 调云盘 API，**禁止**拿 `name` 去云盘搜索 |
-| 正文含 `\.zip` / `\.tar\.gz` / `\.rar` 结尾的 `file` 附件 | `im_archive` | 走 `im:resource` 下载（`type=file`），本地解压后按扩展名逐文件处理 |
-| `msg_type=file`（单个文件，非归档） | `im_file` | 走 `im:resource` 下载；docx/pdf 调 feishu-docx-download / feishu-doc-media |
-| 正文含 `/drive/folder/[A-Za-z0-9]+`（纯字母数字 token） | `drive_folder_link` | 提取 folder_token → 调 feishu-drive / feishu-search-doc |
+| `msg_type === "folder"`（content: `{file_key, file_name}`，file_key 前缀 `file_v3_0110n_`） | `im_folder_attachment` | ❌ **不可下载**。走下方"文件夹附件兜底"话术，**禁止**把 `file_v3_...` 当 folder_token 调云盘 API，**禁止**拿 `file_name` 去云盘搜索 |
+| `msg_type === "file"` 且 `file_name` 以 `.zip` / `.tar.gz` / `.tgz` / `.rar` / `.7z` 结尾 | `im_archive` | 调 feishu-im-file-analyze（自动下载 + 解压 + 逐文件抽文本） |
+| `msg_type === "file"`（其他单个文件，file_key 前缀 `file_v3_0010n_`） | `im_file` | 调 feishu-im-file-analyze（支持 pdf/docx/pptx/xlsx/... 等） |
+| 正文含 `/drive/folder/[A-Za-z0-9]+`（纯字母数字 token，非 `file_` 前缀） | `drive_folder_link` | 提取 folder_token → 调 feishu-drive / feishu-search-doc |
 | 正文含 `/wiki/[A-Za-z0-9]+` | `wiki_node_link` | 提取 node_token → 走 wiki 路径 |
 | 其他 | `plain_text` | 按文本处理 |
+
+> **权威字段是 `msg_type`**。早期文档说"msg_type 枚举不含 folder"并不正确——实测飞书 API 会返回 `msg_type: "folder"`，content 形如 `{"file_key":"file_v3_0110n_xxx","file_name":"..."}`，与 `msg_type=file` 格式一致，**仅靠 content 字段无法区分**，必须看 `msg_type`。file_key 前缀 `0110n`（folder）vs `0010n`（file）可作次要判据。
 
 ### 命名空间铁律
 
@@ -81,7 +83,7 @@ node ../feishu-auth/auth.js --auth-and-poll --open-id "SENDER_OPEN_ID" --chat-id
 
 > 📁 收到文件夹消息「{name}」。
 >
-> 当前飞书 open API 未公开"IM 文件夹附件"的读取接口（`msg_type` 枚举不含 folder，资源下载 `type` 仅支持 image/file），机器人无法直接读取内部文件。
+> 当前飞书 open API 未公开 `msg_type=folder` 附件的下载接口（尝试走 `im:resource` 会报 234003 `File not in msg.`），机器人无法直接读取内部文件。
 >
 > **请改用以下任一方式：**
 > 1. 本地把文件夹**压缩为 .zip** 后发给我（最省事，zip 是标准附件可直接读）

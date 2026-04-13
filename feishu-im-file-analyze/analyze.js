@@ -102,6 +102,20 @@ async function getTenantAccessToken(appId, appSecret) {
   return j.tenant_access_token;
 }
 
+async function fetchMessageMeta(messageId, token) {
+  const url = `https://open.feishu.cn/open-apis/im/v1/messages/${encodeURIComponent(messageId)}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const j = await res.json().catch(() => ({}));
+  if (j.code !== 0) {
+    return { ok: false, code: j.code, msg: j.msg, http_status: res.status };
+  }
+  const item = j.data?.items?.[0] || null;
+  if (!item) return { ok: false, code: -1, msg: 'message not found' };
+  let content = {};
+  try { content = JSON.parse(item.body?.content || '{}'); } catch {}
+  return { ok: true, msg_type: item.msg_type, content };
+}
+
 async function downloadIMResource(messageId, fileKey, outPath) {
   let cfg;
   try { cfg = getConfig(__dirname); } catch (e) {
@@ -111,6 +125,37 @@ async function downloadIMResource(messageId, fileKey, outPath) {
   let token;
   try { token = await getTenantAccessToken(cfg.appId, cfg.appSecret); }
   catch (e) { die({ error: 'token_error', message: e.message }); }
+
+  // Pre-flight: authoritative msg_type check via GET /im/v1/messages/{id}.
+  // Folder attachments (msg_type=folder) cannot be downloaded — fail fast
+  // with a clear reply rather than a misleading 234003. Also catches the
+  // "message_id / file_key mismatch" case up-front.
+  const meta = await fetchMessageMeta(messageId, token);
+  if (meta.ok) {
+    if (meta.msg_type === 'folder') {
+      die({
+        error: 'folder_attachment_not_supported',
+        msg_type: 'folder',
+        file_name: meta.content?.file_name,
+        reply:
+          `📁 这是一条 IM 文件夹附件（msg_type=folder${meta.content?.file_name ? `，文件夹名「${meta.content.file_name}」` : ''}），当前飞书 open API 未公开其下载接口。\n` +
+          '请让发送者改用以下任一方式：\n' +
+          '  1. 本地把文件夹压缩为 .zip 再发送（最省事）；\n' +
+          '  2. 上传到飞书云盘后分享 https://xxx.feishu.cn/drive/folder/<token> 链接。',
+      });
+    }
+    if (meta.content?.file_key && meta.content.file_key !== fileKey) {
+      die({
+        error: 'file_key_mismatch',
+        msg_type: meta.msg_type,
+        expected_file_key: meta.content.file_key,
+        got_file_key: fileKey,
+        reply: `❌ file_key 与 message_id 不匹配。该消息里的 file_key 是 "${meta.content.file_key}"，传入的是 "${fileKey}"。请重新核对调用方传参。`,
+      });
+    }
+  }
+  // meta.ok === false: message fetch failed (permission / not found / token).
+  // Fall through to download attempt; the API will return a more specific error.
 
   const url =
     `https://open.feishu.cn/open-apis/im/v1/messages/${encodeURIComponent(messageId)}` +
@@ -136,9 +181,9 @@ async function downloadIMResource(messageId, fileKey, outPath) {
           '1. message_id 与 file_key 不匹配（最常见——检查两者是否来自同一条消息）',
           '2. file_key 已过期（飞书 IM 附件 file_key 有有效期）',
           '3. 消息已撤回或机器人无权访问该消息',
-          '4. 附件是"IM 文件夹附件"（<folder key=.../>），飞书 open API 不支持读取（返回相同错误码）',
+          '（注：file_v3_0110n_ 前缀的文件夹附件已在调用前短路拦截，不会走到这里）',
         ],
-        hint: '请先确认 message_id 与 file_key 来自同一条消息。若确认无误且为文件夹附件，请让用户改用：① 本地压缩为 .zip 发送；或 ② 上传云盘后分享链接。',
+        hint: '请先确认 message_id 与 file_key 来自同一条消息。',
         reply:
           `❌ 无法下载该附件（飞书返回 234003 "${parsed?.msg || 'File not in msg.'}"）。\n` +
           '可能原因：message_id 与 file_key 不匹配、file_key 过期、消息撤回，或是文件夹附件（open API 不支持）。\n' +
