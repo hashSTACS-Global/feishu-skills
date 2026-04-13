@@ -1,7 +1,9 @@
 /**
  * feishu-im-file-analyze: Download & extract text from IM attachments.
  *
- * Zero npm dependencies. Relies on system tools: `unzip`, `pdftotext`.
+ * Delegates single-file extraction to feishu-docx-download/extract.mjs
+ * (supports docx/pdf/pptx/xlsx/xls/doc/ppt/rtf/epub/html/txt/csv/md).
+ * System tool `unzip` is required for zip archives.
  *
  * Usage:
  *   node analyze.mjs --message-id "om_xxx" --file-key "file_v3_xxx"
@@ -16,6 +18,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { extractFile } from '../feishu-docx-download/extract.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -204,55 +207,8 @@ function truncate(s, maxBytes) {
   return { text: buf.slice(0, maxBytes).toString('utf8'), truncated: true };
 }
 
-function extractPdf(filePath, perFileBytes) {
-  requireTool('pdftotext', 'apt install poppler-utils / brew install poppler / choco install poppler');
-  try {
-    const text = execFileSync(
-      'pdftotext',
-      ['-layout', '-enc', 'UTF-8', '-nopgbrk', filePath, '-'],
-      { maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] },
-    ).toString('utf8');
-    return truncate(text, perFileBytes);
-  } catch (e) {
-    return { text: '', truncated: false, error: `pdftotext failed: ${e.message}` };
-  }
-}
-
-function extractText(filePath, perFileBytes) {
-  try {
-    const buf = fs.readFileSync(filePath);
-    return truncate(buf.toString('utf8'), perFileBytes);
-  } catch (e) {
-    return { text: '', truncated: false, error: e.message };
-  }
-}
-
-function extractDocx(filePath, perFileBytes, tmpRoot) {
-  requireTool('unzip', 'apt install unzip / brew install unzip');
-  const docxTmp = fs.mkdtempSync(path.join(tmpRoot, 'docx-'));
-  try {
-    execFileSync('unzip', ['-o', '-q', filePath, 'word/document.xml', '-d', docxTmp],
-      { stdio: ['ignore', 'ignore', 'pipe'] });
-    const xml = fs.readFileSync(path.join(docxTmp, 'word', 'document.xml'), 'utf8');
-    const text = xml
-      .replace(/<w:p[^>]*>/g, '\n')
-      .replace(/<w:br[^>]*\/?>/g, '\n')
-      .replace(/<w:tab[^>]*\/?>/g, '\t')
-      .replace(/<[^>]+>/g, '')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'")
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-    return truncate(text, perFileBytes);
-  } catch (e) {
-    return { text: '', truncated: false, error: `docx extract failed: ${e.message}` };
-  } finally {
-    try { fs.rmSync(docxTmp, { recursive: true, force: true }); } catch {}
-  }
-}
+// Single-file extraction is delegated to feishu-docx-download/extract.mjs
+// via the shared extractFile() API (docx/pdf/pptx/xlsx/...).
 
 function listZip(zipPath) {
   const outStr = execFileSync('unzip', ['-l', zipPath],
@@ -304,7 +260,7 @@ function walk(dir, rootDir, out) {
 // Main
 // ---------------------------------------------------------------------------
 
-function analyzeSingleFile(filePath, displayName, limits, tmpRoot, warnings) {
+async function analyzeSingleFile(filePath, displayName, limits, warnings) {
   const size = fs.statSync(filePath).size;
   if (size > limits.maxSize) {
     warnings.push(`跳过 ${displayName}：超过单文件上限 ${limits.maxSize} 字节`);
@@ -312,35 +268,26 @@ function analyzeSingleFile(filePath, displayName, limits, tmpRoot, warnings) {
   }
 
   const ext = path.extname(displayName).toLowerCase();
-  let magicHead = null;
-  try {
-    const fd = fs.openSync(filePath, 'r');
-    const tmp = Buffer.alloc(8);
-    fs.readSync(fd, tmp, 0, 8, 0);
-    fs.closeSync(fd);
-    magicHead = tmp;
-  } catch {}
 
-  const kind = detectKind(magicHead, ext);
-
-  if (kind === 'pdf') {
-    const r = extractPdf(filePath, limits.perFileBytes);
-    return { path: displayName, size, type: 'pdf', ...r };
-  }
-  if (kind === 'docx') {
-    const r = extractDocx(filePath, limits.perFileBytes, tmpRoot);
-    return { path: displayName, size, type: 'docx', ...r };
-  }
-  if (kind === 'text') {
-    const r = extractText(filePath, limits.perFileBytes);
-    return { path: displayName, size, type: 'text', ...r };
-  }
-  if (kind === 'image') {
+  if (IMAGE_EXTS.has(ext)) {
     return { path: displayName, size, type: 'image',
              text: '', truncated: false,
              note: '图片文件，如需识别文字请调用 feishu-image-ocr skill' };
   }
-  return { path: displayName, size, type: 'unsupported', text: '', truncated: false };
+
+  try {
+    const { format, text, imageCount } = await extractFile(filePath, { skipSmallFileCheck: true });
+    const t = truncate(text, limits.perFileBytes);
+    const item = { path: displayName, size, type: format, text: t.text, truncated: t.truncated };
+    if (imageCount > 0) item.image_count = imageCount;
+    return item;
+  } catch (e) {
+    if (e.code === 'unsupported_format') {
+      return { path: displayName, size, type: 'unsupported', text: '', truncated: false };
+    }
+    return { path: displayName, size, type: 'error', text: '', truncated: false,
+             error: `${e.code || 'extract_error'}: ${e.message}` };
+  }
 }
 
 async function main() {
@@ -431,12 +378,12 @@ async function main() {
         }
         const remaining = limits.maxTextBytes - totalText;
         const perFile = Math.min(limits.perFileBytes, remaining);
-        const item = analyzeSingleFile(f.abs, f.rel, { ...limits, perFileBytes: perFile }, tmpRoot, warnings);
+        const item = await analyzeSingleFile(f.abs, f.rel, { ...limits, perFileBytes: perFile }, warnings);
         if (item.text) totalText += Buffer.byteLength(item.text, 'utf8');
         files.push(item);
       }
     } else {
-      const item = analyzeSingleFile(workPath, rootName, limits, tmpRoot, warnings);
+      const item = await analyzeSingleFile(workPath, rootName, limits, warnings);
       if (item.text) totalText += Buffer.byteLength(item.text, 'utf8');
       files.push(item);
     }
