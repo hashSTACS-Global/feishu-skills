@@ -37,9 +37,11 @@ const SKILLS = [
   'feishu-search-user',
   'feishu-sheet',
   'feishu-wiki',
+  'feishu-meeting-minutes',
   'feishu-doc-media',
   'feishu-doc-comment',
   'feishu-im-message',
+  'feishu-im-file-analyze',
 ];
 
 // Files/dirs to exclude when copying
