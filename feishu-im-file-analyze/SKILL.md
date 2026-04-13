@@ -15,14 +15,31 @@ inline: true
 
 ## 系统依赖
 
-本 skill **不依赖任何 npm 包**，但需要部署机器预装系统工具：
+本 skill **不依赖任何 npm 包**，但需要部署机器预装以下系统工具：
 
-| 工具 | 用途 | 安装 |
-|---|---|---|
-| `unzip` | 解压 zip / docx / xlsx | Linux: `apt install unzip`；macOS 自带；Windows: PowerShell `Expand-Archive` 或装 [7-Zip] |
-| `pdftotext` | PDF 抽文本 | Linux: `apt install poppler-utils`；macOS: `brew install poppler`；Windows: `choco install poppler` |
+### `unzip`（解压 zip / docx / xlsx）
 
-启动时会自动探测，缺哪个报哪个，**不会静默降级**。
+| 系统 | 安装命令 |
+|---|---|
+| Linux (Debian/Ubuntu) | `apt install unzip` |
+| Linux (RHEL/CentOS) | `yum install unzip` |
+| macOS | 系统自带，无需安装 |
+| Windows | `choco install unzip`，或改用 PowerShell `Expand-Archive`，或装 [7-Zip](https://www.7-zip.org/) |
+
+### `pdftotext`（PDF 抽文本，来自 poppler-utils）
+
+| 系统 | 安装命令 |
+|---|---|
+| Linux (Debian/Ubuntu) | `apt install poppler-utils` |
+| Linux (RHEL/CentOS) | `yum install poppler-utils` |
+| macOS | `brew install poppler` |
+| Windows | `choco install poppler` |
+
+启动时会自动探测，缺哪个报哪个，**不会静默降级**。报错示例：
+
+```json
+{ "error": "missing_system_tool", "tool": "pdftotext", "install_hint": "apt install poppler-utils" }
+```
 
 ## 命令
 
