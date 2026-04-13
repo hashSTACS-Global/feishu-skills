@@ -378,6 +378,19 @@ async function main() {
     });
   }
 
+  // Namespace guard: IM file_key (file_* prefix) is NOT a drive folder_token.
+  // Reject here to prevent misrouted IM folder attachments from silently
+  // falling back to root-directory listing and hallucinating results.
+  if (args.folderToken && /^file_/.test(args.folderToken)) {
+    die({
+      error: 'invalid_folder_token_im_file_key',
+      message:
+        '传入的是 IM 消息 file_key（以 file_ 开头），不是云盘 folder_token。' +
+        '若来源是 IM 文件夹附件 <folder key="file_v3_..."/>，当前飞书 open API 未公开该附件的读取接口，不要调用本 skill。',
+      hint: '引导用户：① 本地把文件夹压缩为 .zip 后发送；或 ② 上传云盘后分享 /drive/folder/<token> 链接。',
+    });
+  }
+
   let cfg;
   try {
     cfg = getConfig(__dirname);
@@ -442,6 +455,9 @@ async function main() {
       payload.drive = raw
         .filter(it => titleMatches(args.query, it.name))
         .map(driveItemToHit);
+      payload.drive_scope = args.folderToken
+        ? { kind: 'folder', folder_token: args.folderToken }
+        : { kind: 'root', warning: '⚠️ 当前为云盘根目录，不是任何具体文件夹。若用户本意查某个文件夹但未提供 folder_token，不要把此结果当作"该文件夹的内容"回复用户。' };
     } else if (args.action === 'list_wiki_spaces') {
       payload.wiki_spaces = await listAllWikiSpaces(accessToken);
       payload.query = args.query || '';

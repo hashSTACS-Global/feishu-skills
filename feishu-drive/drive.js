@@ -510,6 +510,27 @@ async function main() {
     die({ error: 'missing_param', message: '--action 参数必填（list/create_folder/get_meta/copy/move/upload/download/delete）' });
   }
 
+  // Namespace guard: IM file_key (file_* prefix) is NOT a drive folder_token.
+  // Rejecting here prevents the "silently list root directory then hallucinate
+  // results" failure mode when an IM folder attachment is misrouted to drive.
+  if (args.folderToken && /^file_/.test(args.folderToken)) {
+    die({
+      error: 'invalid_folder_token_im_file_key',
+      message:
+        '传入的是 IM 消息 file_key（以 file_ 开头），不是云盘 folder_token。' +
+        '这是命名空间错误，不是格式问题——改前缀也不通。' +
+        '若来源是 IM 文件夹附件 <folder key="file_v3_..."/>，当前飞书 open API ' +
+        '未公开该附件的读取接口，不要调用本 skill。',
+      hint: '引导用户：① 本地把文件夹压缩为 .zip 后发送；或 ② 上传云盘后分享 /drive/folder/<token> 链接。',
+    });
+  }
+  if (args.fileToken && /^file_/.test(args.fileToken)) {
+    die({
+      error: 'invalid_file_token_im_file_key',
+      message: '传入的是 IM file_key，不是云盘 file_token。请使用 IM 资源下载接口下载附件。',
+    });
+  }
+
   let cfg;
   try {
     cfg = getConfig(__dirname);
@@ -550,12 +571,18 @@ async function main() {
         buttonUrl: folderUrl || undefined,
         color: 'blue',
       }).catch(() => {});
+      const scope = args.folderToken
+        ? { kind: 'folder', folder_token: args.folderToken }
+        : { kind: 'root', warning: '⚠️ 当前为云盘根目录，不是任何具体文件夹。若用户本意查某个文件夹但未提供 folder_token，不要把此结果当作"该文件夹的内容"回复用户。' };
       out({
         action: 'list',
         folder_token: args.folderToken || '',
+        scope,
         count: items.length,
         items,
-        reply: `当前文件夹下共有 ${items.length} 个项目。`,
+        reply: args.folderToken
+          ? `当前文件夹下共有 ${items.length} 个项目。`
+          : `云盘根目录下共有 ${items.length} 个项目（这是根目录，不是某个具体文件夹）。`,
       });
       return;
     }

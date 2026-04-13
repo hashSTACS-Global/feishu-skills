@@ -34,13 +34,25 @@
 | `drive:drive` | 云盘文件读写 |
 | `drive:drive:readonly` | 云盘只读 |
 
-### 消息（feishu-im-read / feishu-chat）
+### 消息（feishu-im-read / feishu-chat / feishu-im-message）
 
-| 权限 | 说明 |
-|------|------|
-| `im:message` | 发送消息 |
-| `im:message:readonly` | 读取消息历史 |
-| `im:chat:readonly` | 读取群聊信息 |
+| 权限 | 说明 | 必选场景 |
+|------|------|---------|
+| `im:message.p2p_msg:readonly` | 接收用户单聊消息 | 用户私聊机器人 |
+| `im:message.group_at_msg:readonly` | 接收群内 @机器人 消息 | 群里被 @ 响应 |
+| `im:message:send_as_bot` | 以机器人身份发消息 | 回复用户 |
+| `im:message` | 按 message_id 主动读/发消息 | feishu-im-read 历史 |
+| `im:message:readonly` | 只读消息历史 | 仅读不发时可用此替代 |
+| `im:resource` | 下载消息里的文件/图片/音视频附件 | **读 zip / pdf / docx 等附件必备** |
+| `im:chat:readonly` | 读取群聊基本信息 | 查群成员、群名 |
+| `im:message.group_msg` | 无 @ 也能读群内所有消息 | 需审批，默认不要 |
+
+**事件订阅**（权限之外，还要在"事件订阅"页勾选）：
+- `im.message.receive_v1` — 接收消息（核心）
+- `im.chat.member.bot.added_v1` — 机器人进群（可选）
+- `im.chat.member.bot.deleted_v1` — 机器人被移出群（可选）
+
+**⚠️ 关于文件夹附件**：飞书客户端支持在聊天里直接发送本地文件夹（显示为 `<folder key="file_v3_..."/>`），但 open API **未公开** IM 文件夹附件的读取接口（`msg_type` 枚举不含 folder，资源下载 `type` 仅支持 image/file）。即使开通了 `im:resource` 也无法读取文件夹附件内部文件。引导用户改为：① 压缩成 zip 后发送；或 ② 上传云盘分享链接。
 
 ### 日历（feishu-calendar）
 
