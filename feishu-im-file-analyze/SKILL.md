@@ -1,9 +1,17 @@
 ---
 name: feishu-im-file-analyze
 description: |
-  下载并解析飞书 IM 消息里的附件（.pdf / .zip / .docx / .txt / .md / .csv / .json / .log / .html / .xml），
+  下载并解析飞书 IM 消息里的附件（pdf / docx / pptx / xlsx / xls / doc / ppt / rtf / epub / html / txt / csv / md / zip），
   返回结构化文本供 AI 分析。zip 会自动解压后递归处理支持的类型。
-  适用场景：HR 发 PDF 简历给老板、老板转给机器人分析；群里发 zip 让机器人总结内容等。
+  适用场景（凡是"用户把文件直接发给机器人让它读/总结/对比/提炼"都走本 skill）：
+  - 简历筛选：HR/老板把 PDF 简历或打包简历 zip 甩给机器人，让机器人提炼候选人亮点
+  - 合同/协议审阅：法务/业务发 Word、PDF 合同给机器人，让机器人抽关键条款、找风险点
+  - 会议/访谈材料：把 pptx 培训资料、doc 纪要、md 笔记发进群，让机器人生成摘要或问答
+  - 数据表汇总：把 xlsx/xls/csv 报表发给机器人，让它读表头和样例、给解读或对比
+  - 技术文档问答：把需求文档、接口说明（docx/html/md）发给机器人，让它回答具体问题
+  - 批量附件分析：群里发一个 zip 打包的多份材料，机器人解压后逐份抽文本汇总
+  - 小说/电子书阅读：epub/txt 发给机器人问剧情或提炼观点
+  - 日志排查：log/txt/json 日志发给机器人，让它找异常或时间线
 inline: true
 ---
 
@@ -11,35 +19,7 @@ inline: true
 
 > **模块兼容**：脚本提供 `.js` 和 `.mjs` 两个版本。优先使用 `.js`，若报 `require is not defined` 改用 `.mjs`。
 
-直接用 `exec` 执行，不要检查文件或环境。
-
-## 系统依赖
-
-本 skill **不依赖任何 npm 包**，但需要部署机器预装以下系统工具：
-
-### `unzip`（解压 zip / docx / xlsx）
-
-| 系统 | 安装命令 |
-|---|---|
-| Linux (Debian/Ubuntu) | `apt install unzip` |
-| Linux (RHEL/CentOS) | `yum install unzip` |
-| macOS | 系统自带，无需安装 |
-| Windows | `choco install unzip`，或改用 PowerShell `Expand-Archive`，或装 [7-Zip](https://www.7-zip.org/) |
-
-### `pdftotext`（PDF 抽文本，来自 poppler-utils）
-
-| 系统 | 安装命令 |
-|---|---|
-| Linux (Debian/Ubuntu) | `apt install poppler-utils` |
-| Linux (RHEL/CentOS) | `yum install poppler-utils` |
-| macOS | `brew install poppler` |
-| Windows | `choco install poppler` |
-
-启动时会自动探测，缺哪个报哪个，**不会静默降级**。报错示例：
-
-```json
-{ "error": "missing_system_tool", "tool": "pdftotext", "install_hint": "apt install poppler-utils" }
-```
+直接用 `exec` 执行，不要检查文件或环境。单文件文本抽取复用 `feishu-docx-download/extract.js`，首次运行会自动安装所需 npm 包（xlsx / pdf-parse 等）。zip 解压仅需系统 `unzip`（Linux/macOS 自带，Windows 可装 [7-Zip](https://www.7-zip.org/) 或 `choco install unzip`）。
 
 ## 命令
 
@@ -67,18 +47,16 @@ node ./analyze.js --local-path "/tmp/foo.zip"
 
 ## 支持的类型
 
-| 扩展名 / 魔数 | 处理方式 |
+| 扩展名 | 处理方式 |
 |---|---|
-| `.pdf` | `pdftotext -layout -enc UTF-8` |
 | `.zip` | `unzip` 解压到临时目录 → 递归处理 |
-| `.docx` | `unzip` 抽 `word/document.xml` 纯文本（轻量）；如需完整格式调 feishu-docx-download |
-| `.txt` `.md` `.csv` `.json` `.log` `.xml` `.html` `.yaml` `.yml` | UTF-8 直接读 |
-| `.png` `.jpg` `.jpeg` `.gif` `.webp` | 返回元信息 + 提示调 feishu-image-ocr |
-| 其他 | 返回元信息 + `"unsupported"` |
+| `.pdf` `.docx` `.pptx` `.xlsx` `.xls` `.doc` `.ppt` `.rtf` `.epub` `.html` `.htm` `.txt` `.csv` `.md` | 委派给 `feishu-docx-download/extract.js`（npm 按需安装） |
+| `.png` `.jpg` `.jpeg` `.gif` `.webp` `.bmp` | 返回元信息 + 提示调 feishu-image-ocr |
+| 其他 | 返回元信息 + `type: "unsupported"` |
 
 ## 不支持的场景（硬失败）
 
-- ❌ **IM 文件夹附件**（`<folder key="file_v3_..."/>`）——飞书 open API 未公开，直接返回 `error: folder_attachment_not_supported`，引导用户压缩成 zip 或上传云盘
+- ❌ **IM 文件夹附件**（`<folder key="file_v3_..."/>`）——飞书 open API 未公开，引导用户压缩成 zip 或上传云盘
 - ❌ 加密 / 带密码的 zip / pdf
 - ❌ 超过 `--max-size-mb` 的单文件
 
@@ -90,7 +68,7 @@ node ./analyze.js --local-path "/tmp/foo.zip"
 {
   "action": "analyze",
   "source": { "kind": "im|local", "message_id": "...", "file_key": "...", "path": "..." },
-  "root_type": "pdf|zip|docx|text|image|unsupported",
+  "root_type": "zip|pdf|docx|xlsx|pptx|...|image|unsupported",
   "files": [
     {
       "path": "resume.pdf",
@@ -111,7 +89,7 @@ node ./analyze.js --local-path "/tmp/foo.zip"
 失败场景：
 
 ```json
-{ "error": "missing_system_tool", "tool": "pdftotext", "install_hint": "apt install poppler-utils" }
+{ "error": "missing_system_tool", "tool": "unzip", "install_hint": "apt install unzip" }
 { "error": "resource_not_found", "api_code": 234003, "possible_causes": [...], "hint": "..." }
 { "error": "file_too_large", "size_mb": 123, "limit_mb": 50 }
 { "error": "auth_required" }
